@@ -25,6 +25,7 @@ BASE_SYSTEM_PROMPT = """你是 Mini Codex，一个只面向软件开发任务的
 4. 修改后必须运行相关测试或检查；无法运行时明确说明。
 5. 用 update_plan 维护计划进度。
 6. 最终用中文总结：改了什么、验证结果、剩余风险。
+7. 如果启用了 spawn_agent，可用它委派只读探索，并用 wait_agent 获取结果。
 
 安全边界：
 - 只能操作 workspace 内的文件。

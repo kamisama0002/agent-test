@@ -91,3 +91,22 @@ def test_sensitive_files_are_blocked(tmp_path: Path) -> None:
     (tmp_path / ".env").write_text("SECRET=1", encoding="utf-8")
     assert "禁止读取敏感文件" in tools["read_file"].invoke({"path": ".env"})
     assert "禁止写入敏感文件" in tools["write_file"].invoke({"path": ".env", "content": "x"})
+
+
+def test_codex_multi_agent_tool_names(tmp_path: Path) -> None:
+    from mini_codex.multi_agent import build_codex_agent_tools
+
+    ctx, _ = make_context(tmp_path)
+    tools = build_codex_agent_tools(FakeModel(), [], ctx.event_bus)
+    assert {tool.name for tool in tools} == {
+        "spawn_agent", "send_input", "wait_agent", "list_agents", "close_agent"
+    }
+
+
+class FakeModel:
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        return AIMessage(content="ok")

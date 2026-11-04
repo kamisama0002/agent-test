@@ -4,6 +4,7 @@ __pycache__/
 .env
 .idea/
 .mini_codex/
+**/.claude/runs/
 .ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/

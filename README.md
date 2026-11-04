@@ -1,10 +1,11 @@
-# LangChain + 五框架 Agent + Mini Codex
+# LangChain + 五框架 Agent + Mini Codex + Claude Harness
 
 这个项目现在包含三层内容：
 
 1. **LangChain 核心能力教程**：15 个可独立运行的 Python 案例；
 2. **五框架售后工单小项目**：同一业务分别用 LangChain、LangGraph、CrewAI、LlamaIndex、OpenAI Agents SDK 实现；
 3. **Mini Codex**：用 LangChain 复刻 Codex 的开发 Agent Harness，包含上下文、规划、工具循环、验证和事件可视化。
+4. **Claude-style Harness**：用 LangGraph 复刻 Claude Code 的 `queryLoop`、`CLAUDE.md`、权限模式、TodoWrite、上下文压缩、子 Agent 和 MCP。
 
 所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 `deepseek-v4.1-flash`。
 
@@ -24,10 +25,17 @@ uv run python -m support_project.runner --list
 uv run python -m support_project.runner --framework langgraph --full
 uv run python -m support_project.runner --all
 
-# Mini Codex：在演示仓库副本上完成一次真实开发任务
+# Mini Codex：Copilot/Codex-style Harness
 Copy-Item examples/mini_codex_demo $env:TEMP/mini_codex_demo -Recurse -Force
 uv run python -m mini_codex --workspace $env:TEMP/mini_codex_demo `
   --task "修复 calculator.py 中 add 的 bug，运行测试并总结" `
+  --verify-command "python -m pytest -q" --enable-multi-agent --enable-mcp
+
+# Claude-style Harness：在演示仓库副本上完成一次真实开发任务
+Copy-Item examples/claude_harness_demo $env:TEMP/claude_harness_demo -Recurse -Force
+uv run python -m claude_harness --workspace $env:TEMP/claude_harness_demo `
+  --task "用 Task/TaskOutput 委派 explore，调用 MCP repo_stats，修复 add 并运行测试" `
+  --permission-mode acceptEdits --auto-approve --enable-mcp `
   --verify-command "python -m pytest -q"
 
 # 离线测试
@@ -89,6 +97,11 @@ Mini Codex 暴露的开发工具：
 - `git_status` / `git_diff`
 - `update_plan`
 
+可选能力：
+
+- `--enable-multi-agent`：增加 `spawn_agent` / `send_input` / `wait_agent` / `list_agents` / `close_agent`；
+- `--enable-mcp`：通过 MCP 动态加载只读 `repo_stats` 和 `find_todos`。
+
 运行：
 
 ```powershell
@@ -103,7 +116,35 @@ uv run python -m mini_codex `
 
 详细架构、Codex 源码映射和事件说明：[docs/mini-codex-architecture.md](docs/mini-codex-architecture.md)
 
+多 Agent 通信细节：[docs/multi-agent-communication.md](docs/multi-agent-communication.md)
+
 Notebook 演示：[MiniCodexHarness.ipynb](MiniCodexHarness.ipynb)
+
+## Claude Code-style Harness
+
+Claude 版不是把 Codex 的代码换个名字，而是按 Claude Code 的 `queryLoop` 重新组织：
+
+```text
+prepare → plan(TodoWrite) → model ↔ tools → compact → finalize
+```
+
+覆盖的 Claude 特色：
+
+- `CLAUDE.md`、`.claude/CLAUDE.md`、`.claude/rules/*.md`、`CLAUDE.local.md`；
+- `Read/Glob/Grep/Explore/Write/Edit/Bash/TodoWrite` 工具；
+- `default/plan/acceptEdits/bypassPermissions/dontAsk` 权限模式；
+- `microcompact` + `full compact`；
+- session memory；
+- `Task / SendMessage / TaskOutput / TaskList / CloseAgent` 多 Agent；
+- MCP `repo_stats / find_todos`；
+- 事件 JSONL、timeline、summary、diff。
+
+详细实现：[docs/claude-harness-architecture.md](docs/claude-harness-architecture.md)
+多 Agent 通信：[docs/multi-agent-communication.md](docs/multi-agent-communication.md)
+Claude/GPT 与两套 Harness 的异同：[docs/claude-vs-codex.md](docs/claude-vs-codex.md)
+Notebook：[ClaudeHarness.ipynb](ClaudeHarness.ipynb)
+
+Claude 源码研究材料位于 `D:\workspace\agent\claudecode`，包括 `Claude-Code-Source-Study` 和恢复源码 `claude-code-sourcemap`。
 
 ## Jupyter Notebooks
 
@@ -124,6 +165,8 @@ uv run python -m ipykernel install --user --name agent-test --display-name "Pyth
 | [OpenAiAgentsSDK测试.ipynb](OpenAiAgentsSDK测试.ipynb) | Runner、function_tool、handoff、guardrail、RunResult 可观测性 |
 | [框架对比.ipynb](框架对比.ipynb) | 同一业务运行 5 个框架并比较结果 |
 | [MiniCodexHarness.ipynb](MiniCodexHarness.ipynb) | Mini Codex 的阶段、工具、事件时间线和完整开发任务 |
+| [ClaudeHarness.ipynb](ClaudeHarness.ipynb) | Claude-style queryLoop、CLAUDE.md、权限、多 Agent、MCP 和完整开发任务 |
+| [MultiAgentPatterns.ipynb](MultiAgentPatterns.ipynb) | Codex/Claude 两种 mailbox、SendMessage/TaskOutput、spawn/wait 对比 |
 
 Notebook 里的示例都对应 `support_project/adapters/` 下的可运行代码，不是孤立片段。
 
@@ -153,14 +196,11 @@ BAILIAN_EMBEDDING_MODEL=
 ├── Llamalnd测试.ipynb              # LlamaIndex
 ├── OpenAiAgentsSDK测试.ipynb
 ├── 框架对比.ipynb
+├── MiniCodexHarness.ipynb
+├── ClaudeHarness.ipynb
+├── MultiAgentPatterns.ipynb
 ├── langchain_cases/                # LangChain 15 个独立案例
 ├── support_project/                # 五框架售后工单小项目
-├── mini_codex/                     # LangChain 版 Codex Harness
-│   ├── context.py                  # AGENTS.md / 环境 / 上下文压缩
-│   ├── tools.py                    # 开发工具与命令边界
-│   ├── events.py                   # 事件流与 timeline.md
-│   └── harness.py                  # bootstrap/context/plan/agent/verify/finalize
-├── examples/mini_codex_demo/       # 可修复的最小 Python 项目
 │   ├── domain.py                   # 订单、退款、政策（框架无关）
 │   ├── local_embedding.py          # 本地哈希向量
 │   ├── runner.py                   # 统一运行与对比
@@ -170,12 +210,34 @@ BAILIAN_EMBEDDING_MODEL=
 │       ├── crewai_adapter.py
 │       ├── llamaindex_adapter.py
 │       └── openai_agents_adapter.py
+├── mini_codex/                     # LangChain 版 Codex Harness
+│   ├── context.py                  # AGENTS.md / 环境 / 上下文压缩
+│   ├── tools.py                    # 开发工具与命令边界
+│   ├── events.py                   # 事件流与 timeline.md
+│   ├── multi_agent.py              # spawn/send_input/wait_agent
+│   ├── mcp_client.py               # MCP 工具桥接
+│   └── harness.py                  # bootstrap/context/plan/agent/verify/finalize
+├── claude_harness/                 # LangGraph 版 Claude Code-style Harness
+│   ├── context.py                  # CLAUDE.md / session memory / compact
+│   ├── permissions.py              # permission modes
+│   ├── tools.py                    # Read/Edit/Bash/TodoWrite
+│   ├── multi_agent.py              # Task/SendMessage/TaskOutput
+│   ├── mcp_server.py               # 本地只读 MCP server
+│   └── harness.py                  # LangGraph queryLoop
+├── agent_runtime/                  # 两套 Harness 共用的 mailbox runtime
+├── examples/
+│   ├── mini_codex_demo/            # 可修复的最小 Python 项目
+│   └── claude_harness_demo/        # 带 CLAUDE.md 的最小 Python 项目
 ├── data/
 │   ├── langchain_guide.md          # LangChain RAG 示例数据
 │   └── support_policy.md           # 售后小项目政策库
 ├── docs/framework-selection.md     # 五框架选型指南
 ├── docs/framework-feature-map.md   # 特色能力与案例位置索引
 ├── docs/mini-codex-architecture.md # Codex Harness 对照与实现说明
+├── docs/claude-harness-architecture.md # Claude Code-style 实现说明
+├── docs/multi-agent-communication.md   # 多 Agent 通信细节
+├── docs/agent-systems-glossary.md      # Agent 名词表
+├── docs/claude-vs-codex.md              # Claude/GPT 与 Harness 异同
 ├── tests/
 ├── .env
 ├── .env.example
@@ -214,6 +276,7 @@ BAILIAN_EMBEDDING_MODEL=
 - 为了满足 CrewAI 的依赖约束，项目锁定 `pydantic<2.13`、`rich<15` 和 `openai<3`。
 - HITL / 审批示例为了无人值守演示会自动批准；真实业务必须交给人工。
 - Mini Codex 是教学用简化 Harness：用路径限制和命令白名单/黑名单代替 Codex 的 OS sandbox，不包含 MCP、图片、多 Agent、插件和 app-server。
+- Claude-style Harness 是教学用简化实现：不复制 Claude Code 的 Ink UI、完整 hooks 协议、OS sandbox、远程 Agent、任务 DAG 和真正 Claude API；当前使用百炼 DeepSeek 驱动。
 - 耗时对比包含网络波动，不是严格 benchmark。
 
 ## 安全提醒

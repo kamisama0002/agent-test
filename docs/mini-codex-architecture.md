@@ -214,3 +214,45 @@ uv run python -m mini_codex `
 - 工具 handler：https://github.com/openai/codex/tree/main/codex-rs/core/src/tools/handlers
 - AGENTS.md 发现：https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs
 - 上下文压缩：https://github.com/openai/codex/blob/main/codex-rs/core/src/compact.rs
+
+## 8. 简略多 Agent 与 MCP
+
+### 多 Agent
+
+Mini Codex 的 `mini_codex/multi_agent.py` 提供：
+
+- `spawn_agent(description, role)`：启动只读子 Agent，返回 `agent_id`；
+- `send_input(agent_id, message)`：投递消息到 mailbox；
+- `wait_agent(agent_id, timeout_sec)`：等待结果；
+- `list_agents()`：查看状态；
+- `close_agent(agent_id)`：请求停止。
+
+底层共享 `agent_runtime/runtime.py`：
+
+- 子 Agent 在独立线程和独立消息上下文中运行；
+- 每轮模型采样前消费 inbox；
+- 工具结果回填后继续采样；
+- 父 Agent 通过 `wait_agent` 获取 snapshot。
+
+对应 Codex 源码：
+
+- `codex-rs/core/src/agent/control/mailbox.rs`
+- `codex-rs/core/src/agent/control/spawn.rs`
+- `codex-rs/core/src/tools/handlers/multi_agents_v2/`
+
+运行：
+
+```powershell
+uv run python -m mini_codex --workspace ... --task ... --enable-multi-agent
+```
+
+### MCP
+
+Mini Codex 的 `--enable-mcp` 会复用 `claude_harness/mcp_server.py` 的只读 MCP Server，
+通过 `langchain-mcp-adapters` 加载 `repo_stats` 和 `find_todos`。
+
+```powershell
+uv run python -m mini_codex --workspace ... --task ... --enable-mcp
+```
+
+这部分是简化的 MCP：只演示 discovery、工具绑定和同步调用，不包含 MCP 鉴权、资源订阅、网络传输和多 server 命名空间。

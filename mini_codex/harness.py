@@ -28,6 +28,7 @@ from langchain_cases.common import build_chat_model, message_text
 from .config import HarnessConfig
 from .context import ContextManager
 from .events import EventBus
+from .multi_agent import READ_ONLY_TOOL_NAMES, build_codex_agent_tools
 from .state import ChangeTracker, CommandRecord, Plan, PlanState
 from .tools import ToolContext, build_tools
 
@@ -144,6 +145,34 @@ class MiniCodexHarness:
                     command_timeout=self.config.command_timeout,
                 )
                 tools = build_tools(tool_ctx)
+                if self.config.enable_mcp:
+                    from .mcp_client import load_mcp_tools
+
+                    server_script = (
+                        self.config.mcp_server_script
+                        or Path(__file__).resolve().parent.parent / "claude_harness" / "mcp_server.py"
+                    )
+                    try:
+                        mcp_tools = load_mcp_tools(self.config.workspace, server_script)
+                        tools.extend(mcp_tools)
+                        bus.emit(
+                            "mcp_tools_loaded",
+                            "agent",
+                            f"loaded {len(mcp_tools)} MCP tools",
+                            tools=[item.name for item in mcp_tools],
+                        )
+                    except Exception as exc:
+                        errors.append(f"mcp: {exc}")
+                        bus.emit("error", "agent", f"MCP 加载失败：{exc}")
+                if self.config.enable_multi_agent:
+                    read_only_tools = [
+                        item for item in tools if item.name in READ_ONLY_TOOL_NAMES
+                    ]
+                    tools.extend(
+                        build_codex_agent_tools(
+                            build_chat_model(), read_only_tools, bus
+                        )
+                    )
                 tool_map = {item.name: item for item in tools}
                 model = build_chat_model().bind_tools(tools)
                 seen_calls: dict[str, int] = {}

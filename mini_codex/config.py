@@ -20,6 +20,9 @@ class HarnessConfig:
     verify_command: str | None = None
     trace_root: Path | None = None
     console: bool = True
+    enable_multi_agent: bool = False
+    enable_mcp: bool = False
+    mcp_server_script: Path | None = None
 
     def __post_init__(self) -> None:
         self.workspace = Path(self.workspace).resolve()
@@ -29,3 +32,5 @@ class HarnessConfig:
             self.trace_root = self.workspace / ".mini_codex" / "runs"
         else:
             self.trace_root = Path(self.trace_root).resolve()
+        if self.mcp_server_script is not None:
+            self.mcp_server_script = Path(self.mcp_server_script).resolve()
