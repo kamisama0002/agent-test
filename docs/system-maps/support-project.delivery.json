@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "fe4badf5-820a-4b58-ad90-dbb2d293ba92",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\support-project.workflow.json",
+  "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\support-project.html",
+  "specification": {
+    "sha256": "d1bffaefd988b6be2ad125e663e80b59c77ed7e4d8468f0e515c78c19cc23525",
+    "bytes": 5613
+  },
+  "artifact": {
+    "sha256": "fb69e77f7f07bc328be3dff96b2fdd035fc7d7dc549ba812fe8146d8b48df8e7",
+    "bytes": 818524
+  }
+}

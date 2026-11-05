@@ -1,0 +1,440 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Hermes mini：长期记忆与后台复盘",
+    "subtitle": "对应 hermes_harness/harness.py、memory.py、skills.py、sessions.py 和 review.py",
+    "locale": "zh-CN",
+    "output": "docs/system-maps/hermes-harness.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kamisama0002/agent-test.git",
+      "provider": "github",
+      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "link_mode": "web"
+    },
+    "views": [
+      {
+        "id": "learning",
+        "label": "学习闭环",
+        "focus": [
+          "start",
+          "prepare",
+          "memory",
+          "skills",
+          "model",
+          "tools",
+          "finalize",
+          "review"
+        ],
+        "note": "review 只写持久层，不回写主消息"
+      },
+      {
+        "id": "recall",
+        "label": "第二次会话",
+        "focus": [
+          "prepare",
+          "memory",
+          "skills",
+          "sessions",
+          "model",
+          "tools"
+        ],
+        "note": "新 session 会重新注入 MEMORY/USER/Skills 索引"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "session",
+      "label": "会话入口与上下文"
+    },
+    {
+      "id": "loop",
+      "label": "通用 Agent loop"
+    },
+    {
+      "id": "stores",
+      "label": "长期持久层"
+    },
+    {
+      "id": "review",
+      "label": "后台学习闭环",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "prepare",
+      "label": "组装长期上下文",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "answer",
+      "label": "模型 ↔ 工具",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "learn",
+      "label": "落盘与复盘",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "toolset",
+      "label": "按场景裁剪工具",
+      "lane": "session",
+      "fromCol": 0,
+      "toCol": 1,
+      "variant": "security"
+    },
+    {
+      "id": "learning",
+      "label": "review 白名单：memory/skills",
+      "lane": "review",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "session",
+      "col": 0,
+      "type": "external",
+      "label": "通用任务",
+      "sublabel": "task + workspace",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 156,
+          "end_line": 186,
+          "label": "run 入口"
+        }
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "toolset",
+      "lane": "session",
+      "col": 1,
+      "type": "security",
+      "label": "Toolset Registry",
+      "sublabel": "file / memory / skills",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/toolsets.py",
+          "line": 18,
+          "end_line": 58,
+          "label": "toolset 定义"
+        },
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 99,
+          "end_line": 110,
+          "label": "工具绑定"
+        }
+      ],
+      "tag": "按场景裁剪",
+      "icon": "security"
+    },
+    {
+      "id": "prepare",
+      "lane": "session",
+      "col": 2,
+      "type": "backend",
+      "label": "Prepare Context",
+      "sublabel": "SOUL + MEMORY + Skills",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 188,
+          "end_line": 200,
+          "label": "prepare_node"
+        },
+        {
+          "path": "hermes_harness/context.py",
+          "line": 75,
+          "end_line": 115,
+          "label": "context manager"
+        }
+      ],
+      "tag": "渐进披露"
+    },
+    {
+      "id": "model",
+      "lane": "loop",
+      "col": 3,
+      "type": "cloud",
+      "label": "Model Invoke",
+      "sublabel": "sampling + tools",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 201,
+          "end_line": 233,
+          "label": "model_node"
+        }
+      ],
+      "tag": "ChatOpenAI",
+      "icon": "cloud"
+    },
+    {
+      "id": "tools",
+      "lane": "loop",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Tool Calls",
+      "sublabel": "file / memory / search",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 234,
+          "end_line": 260,
+          "label": "tools_node"
+        },
+        {
+          "path": "hermes_harness/tools.py",
+          "line": 199,
+          "end_line": 340,
+          "label": "build_tools"
+        }
+      ],
+      "tag": "ToolMessage",
+      "icon": "messagebus"
+    },
+    {
+      "id": "finalize",
+      "lane": "loop",
+      "col": 5,
+      "type": "backend",
+      "label": "Finalize",
+      "sublabel": "session + summary",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 262,
+          "end_line": 278,
+          "label": "finalize_node"
+        },
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 289,
+          "end_line": 343,
+          "label": "会话落盘"
+        }
+      ],
+      "tag": "RunResult",
+      "icon": "success"
+    },
+    {
+      "id": "memory",
+      "lane": "stores",
+      "col": 4,
+      "type": "database",
+      "label": "MEMORY.md / USER.md",
+      "sublabel": "bounded memory",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/memory.py",
+          "line": 37,
+          "end_line": 220,
+          "label": "MemoryStore"
+        }
+      ],
+      "tag": "字符预算",
+      "icon": "database"
+    },
+    {
+      "id": "skills",
+      "lane": "stores",
+      "col": 5,
+      "type": "database",
+      "label": "skills/SKILL.md",
+      "sublabel": "SKILL.md + usage",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/skills.py",
+          "line": 112,
+          "end_line": 395,
+          "label": "SkillStore"
+        }
+      ],
+      "tag": "程序性记忆",
+      "icon": "database"
+    },
+    {
+      "id": "sessions",
+      "lane": "stores",
+      "col": 3,
+      "type": "database",
+      "label": "SessionStore",
+      "sublabel": "SQLite FTS5 + bigram",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/sessions.py",
+          "line": 49,
+          "end_line": 274,
+          "label": "SessionStore"
+        }
+      ],
+      "tag": "session_search",
+      "icon": "database"
+    },
+    {
+      "id": "review",
+      "lane": "review",
+      "col": 4,
+      "type": "security",
+      "label": "Background Review",
+      "sublabel": "memory/skills only",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/review.py",
+          "line": 76,
+          "end_line": 134,
+          "label": "BackgroundReview"
+        },
+        {
+          "path": "hermes_harness/harness.py",
+          "line": 297,
+          "end_line": 325,
+          "label": "review 调度"
+        }
+      ],
+      "tag": "失败不覆盖主答案",
+      "icon": "security"
+    },
+    {
+      "id": "curator",
+      "lane": "review",
+      "col": 5,
+      "type": "messagebus",
+      "label": "Curator",
+      "sublabel": "stale / archive",
+      "width": 140,
+      "sources": [
+        {
+          "path": "hermes_harness/skills.py",
+          "line": 330,
+          "end_line": 398,
+          "label": "curate"
+        }
+      ],
+      "tag": "生命周期",
+      "icon": "neutral"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-toolset",
+      "from": "start",
+      "to": "toolset",
+      "variant": "default",
+      "label": "按场景选择"
+    },
+    {
+      "id": "toolset-prepare",
+      "from": "toolset",
+      "to": "prepare",
+      "variant": "default",
+      "label": "可用工具清单"
+    },
+    {
+      "id": "prepare-model",
+      "from": "prepare",
+      "to": "model",
+      "variant": "default",
+      "label": "长期上下文"
+    },
+    {
+      "id": "model-tools",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "tool_calls"
+    },
+    {
+      "id": "tools-model",
+      "from": "tools",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "观察回填",
+      "role": "branch"
+    },
+    {
+      "id": "model-finalize",
+      "from": "model",
+      "to": "finalize",
+      "variant": "default",
+      "label": "no tool_calls"
+    },
+    {
+      "id": "finalize-review",
+      "from": "finalize",
+      "to": "review",
+      "variant": "emphasis",
+      "label": "回合后"
+    },
+    {
+      "id": "review-memory",
+      "from": "review",
+      "to": "memory",
+      "variant": "security",
+      "label": "add/patch"
+    },
+    {
+      "id": "review-skills",
+      "from": "review",
+      "to": "skills",
+      "variant": "security",
+      "label": "create/patch"
+    },
+    {
+      "id": "skills-curator",
+      "from": "skills",
+      "to": "curator",
+      "variant": "dashed",
+      "label": "usage/lifecycle",
+      "role": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "记忆边界",
+      "items": [
+        "声明性事实进 MEMORY/USER",
+        "程序性流程进 SKILL.md",
+        "review 不修改 workspace"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "和真实 Hermes 的差异",
+      "items": [
+        "真实 Hermes 主循环不用 LangGraph",
+        "本项目为教学把阶段拆成图",
+        "未复制 gateway/cron/远程 sandbox"
+      ]
+    }
+  ]
+}

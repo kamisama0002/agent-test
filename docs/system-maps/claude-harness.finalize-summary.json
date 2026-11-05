@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\claude-harness.workflow.json",
+    "sha256": "090afa369c7ebefaa16f0da17fdfd672de715ea1aba16f521ee0f36fbccb64fc",
+    "bytes": 11597
+  },
+  "artifact": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\claude-harness.html",
+    "sha256": "b12ca3c03a65aaf494fb79714472a8266b0f99f16aa7bed8dcd62ae332fe5799",
+    "bytes": 840594
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\claude-harness.finalize.json",
+    "summaryReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\claude-harness.finalize-summary.json",
+    "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\claude-harness.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-05T07:17:05.283Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3959,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\hermes-harness.workflow.json",
+    "sha256": "57f1c2a21c1cc0bdb2bf1375ea0273ac67e93c08d410bb47c1eac99fad4ab494",
+    "bytes": 10190
+  },
+  "artifact": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\hermes-harness.html",
+    "sha256": "77f133d460b2742e27d502b99820779c4956e8031b89f48664ea24c7f2bcc2e9",
+    "bytes": 836263
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\hermes-harness.finalize.json",
+    "summaryReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\hermes-harness.finalize-summary.json",
+    "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\hermes-harness.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-05T07:17:05.283Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4430,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

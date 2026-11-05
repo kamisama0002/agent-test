@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\support-project.workflow.json",
+    "sha256": "d1bffaefd988b6be2ad125e663e80b59c77ed7e4d8468f0e515c78c19cc23525",
+    "bytes": 5613
+  },
+  "artifact": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\support-project.html",
+    "sha256": "fb69e77f7f07bc328be3dff96b2fdd035fc7d7dc549ba812fe8146d8b48df8e7",
+    "bytes": 818524
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\support-project.finalize.json",
+    "summaryReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\support-project.finalize-summary.json",
+    "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\support-project.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-05T07:17:05.283Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4018,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

@@ -1,0 +1,498 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Mini Codex：源码级运行流",
+    "subtitle": "对应 mini_codex/harness.py::MiniCodexHarness.run；节点标注真实源码位置",
+    "locale": "zh-CN",
+    "output": "docs/system-maps/mini-codex.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kamisama0002/agent-test.git",
+      "provider": "github",
+      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "link_mode": "web"
+    },
+    "views": [
+      {
+        "id": "happy",
+        "label": "正常开发闭环",
+        "focus": [
+          "start",
+          "boot",
+          "context",
+          "plan",
+          "setup",
+          "model",
+          "tools",
+          "verify",
+          "final"
+        ],
+        "note": "模型无 tool_calls 后进入验证与 finalize"
+      },
+      {
+        "id": "tools",
+        "label": "工具分支",
+        "focus": [
+          "model",
+          "tools",
+          "tool_registry",
+          "events",
+          "multi_agent"
+        ],
+        "note": "MCP 和多 Agent 是可选装配"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "入口与上下文"
+    },
+    {
+      "id": "loop",
+      "label": "Agent turn loop（Python for 循环）"
+    },
+    {
+      "id": "evidence",
+      "label": "事件、工具与证据"
+    },
+    {
+      "id": "exit",
+      "label": "验证与产物",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "setup",
+      "label": "准备仓库",
+      "fromCol": 0,
+      "toCol": 1,
+      "variant": "default"
+    },
+    {
+      "id": "reason",
+      "label": "计划与采样",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "execute",
+      "label": "工具与验证",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "turn_loop",
+      "label": "每轮 model → tools → model",
+      "lane": "loop",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "event_trace",
+      "label": "EventBus 时间线",
+      "lane": "evidence",
+      "fromCol": 1,
+      "toCol": 3,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "用户任务",
+      "sublabel": "task + workspace",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 99,
+          "end_line": 103,
+          "label": "run 入口"
+        }
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "boot",
+      "lane": "entry",
+      "col": 1,
+      "type": "backend",
+      "label": "Bootstrap",
+      "sublabel": "validate + create run",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 112,
+          "end_line": 118,
+          "label": "bootstrap stage"
+        }
+      ],
+      "icon": "start"
+    },
+    {
+      "id": "context",
+      "lane": "entry",
+      "col": 2,
+      "type": "database",
+      "label": "ContextManager",
+      "sublabel": "AGENTS.md + environment",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 120,
+          "end_line": 129,
+          "label": "context stage"
+        },
+        {
+          "path": "mini_codex/context.py",
+          "line": 84,
+          "end_line": 109,
+          "label": "环境上下文"
+        }
+      ],
+      "tag": "AGENTS.md"
+    },
+    {
+      "id": "plan",
+      "lane": "entry",
+      "col": 3,
+      "type": "backend",
+      "label": "Structured Plan",
+      "sublabel": "3–6 steps",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 56,
+          "end_line": 97,
+          "label": "规划与回退"
+        },
+        {
+          "path": "mini_codex/harness.py",
+          "line": 131,
+          "end_line": 134,
+          "label": "plan stage"
+        }
+      ],
+      "tag": "PlanState"
+    },
+    {
+      "id": "setup",
+      "lane": "loop",
+      "col": 2,
+      "type": "backend",
+      "label": "Agent Setup",
+      "sublabel": "ToolContext + model",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 136,
+          "end_line": 177,
+          "label": "agent setup"
+        }
+      ],
+      "tag": "tool binding"
+    },
+    {
+      "id": "model",
+      "lane": "loop",
+      "col": 3,
+      "type": "cloud",
+      "label": "Model Invoke",
+      "sublabel": "sampling + compact",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 180,
+          "end_line": 211,
+          "label": "采样循环"
+        },
+        {
+          "path": "mini_codex/context.py",
+          "line": 117,
+          "end_line": 145,
+          "label": "上下文压缩"
+        }
+      ],
+      "tag": "ChatOpenAI",
+      "icon": "cloud"
+    },
+    {
+      "id": "tools",
+      "lane": "loop",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Tool Calls",
+      "sublabel": "execute tool_calls",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 213,
+          "end_line": 261,
+          "label": "工具执行"
+        }
+      ],
+      "tag": "ToolMessage",
+      "icon": "messagebus"
+    },
+    {
+      "id": "tool_registry",
+      "lane": "evidence",
+      "col": 1,
+      "type": "backend",
+      "label": "Tool Registry",
+      "sublabel": "read/write/search/command",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/tools.py",
+          "line": 71,
+          "end_line": 259,
+          "label": "build_tools"
+        }
+      ],
+      "tag": "开发工具"
+    },
+    {
+      "id": "events",
+      "lane": "evidence",
+      "col": 2,
+      "type": "database",
+      "label": "EventBus",
+      "sublabel": "events + timeline",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/events.py",
+          "line": 42,
+          "end_line": 113,
+          "label": "事件与时间线"
+        }
+      ],
+      "tag": "可回放",
+      "icon": "database"
+    },
+    {
+      "id": "multi_agent",
+      "lane": "evidence",
+      "col": 3,
+      "type": "messagebus",
+      "label": "SubagentRuntime",
+      "sublabel": "spawn/send/wait",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/multi_agent.py",
+          "line": 22,
+          "end_line": 70,
+          "label": "多 Agent 工具"
+        }
+      ],
+      "tag": "可选",
+      "icon": "messagebus"
+    },
+    {
+      "id": "verify",
+      "lane": "exit",
+      "col": 4,
+      "type": "security",
+      "label": "Verify",
+      "sublabel": "exit code",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 263,
+          "end_line": 285,
+          "label": "验证阶段"
+        }
+      ],
+      "tag": "exit code",
+      "icon": "security"
+    },
+    {
+      "id": "final",
+      "lane": "exit",
+      "col": 5,
+      "type": "backend",
+      "label": "Finalize + Result",
+      "sublabel": "summary + diff",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 287,
+          "end_line": 318,
+          "label": "finalize"
+        },
+        {
+          "path": "mini_codex/harness.py",
+          "line": 327,
+          "end_line": 340,
+          "label": "RunResult"
+        }
+      ],
+      "tag": "产物",
+      "icon": "success"
+    },
+    {
+      "id": "error",
+      "lane": "exit",
+      "col": 3,
+      "type": "security",
+      "label": "Error Path",
+      "sublabel": "exception path",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 320,
+          "end_line": 325,
+          "label": "外层异常"
+        }
+      ],
+      "tag": "错误",
+      "icon": "failure"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-boot",
+      "from": "start",
+      "to": "boot",
+      "variant": "default",
+      "label": "启动"
+    },
+    {
+      "id": "boot-context",
+      "from": "boot",
+      "to": "context",
+      "variant": "default"
+    },
+    {
+      "id": "context-plan",
+      "from": "context",
+      "to": "plan",
+      "variant": "default",
+      "label": "规约 + 环境"
+    },
+    {
+      "id": "plan-setup",
+      "from": "plan",
+      "to": "setup",
+      "variant": "default",
+      "label": "计划已生成"
+    },
+    {
+      "id": "setup-model",
+      "from": "setup",
+      "to": "model",
+      "variant": "default",
+      "label": "绑定工具"
+    },
+    {
+      "id": "model-tools",
+      "from": "model",
+      "to": "tools",
+      "variant": "default",
+      "label": "tool_calls"
+    },
+    {
+      "id": "tools-model",
+      "from": "tools",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "下一轮",
+      "role": "branch"
+    },
+    {
+      "id": "model-verify",
+      "from": "model",
+      "to": "verify",
+      "variant": "default",
+      "label": "no tool_calls"
+    },
+    {
+      "id": "verify-final",
+      "from": "verify",
+      "to": "final",
+      "variant": "default",
+      "label": "验证结果"
+    },
+    {
+      "id": "tools-registry",
+      "from": "tools",
+      "to": "tool_registry",
+      "variant": "dashed",
+      "label": "查找工具",
+      "role": "branch"
+    },
+    {
+      "id": "tools-events",
+      "from": "tools",
+      "to": "events",
+      "variant": "dashed",
+      "label": "记录事件",
+      "role": "branch"
+    },
+    {
+      "id": "model-events",
+      "from": "model",
+      "to": "events",
+      "variant": "dashed",
+      "label": "token/model 事件",
+      "role": "branch"
+    },
+    {
+      "id": "setup-multi",
+      "from": "setup",
+      "to": "multi_agent",
+      "variant": "dashed",
+      "label": "可选装配",
+      "role": "branch"
+    },
+    {
+      "id": "error-final",
+      "from": "error",
+      "to": "final",
+      "variant": "security",
+      "label": "返回失败结果",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "源码入口",
+      "items": [
+        "主循环集中在 MiniCodexHarness.run()",
+        "agent 是 Python for 循环，不是 LangGraph"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "图中的 skills 口径",
+      "items": [
+        "本系统没有 SKILL.md 加载器",
+        "AGENTS.md 是项目指令，不是动态技能"
+      ]
+    }
+  ]
+}

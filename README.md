@@ -193,6 +193,17 @@ uv run python -m hermes_harness `
 - [HermesHarness.ipynb](HermesHarness.ipynb)
 - [源码级系统流程图](docs/system-maps/README.md)
 
+## 源码级交互流程图
+
+这些图由 Archify 生成，节点带源码路径/行号和 GitHub 链接，适合对照 `events.jsonl` 阅读。
+
+- [Mini Codex：run_turn 工具循环](docs/system-maps/mini-codex.html)
+- [Claude-style：LangGraph queryLoop](docs/system-maps/claude-harness.html)
+- [Hermes mini：记忆、技能与后台复盘](docs/system-maps/hermes-harness.html)
+- [Support Project：五框架对照](docs/system-maps/support-project.html)
+- [图的说明与实时事件映射](docs/system-maps/README.md)
+
+
 ## Jupyter Notebooks
 
 在 IDE 中打开 Notebook，并选择能够读取项目 `.venv` 的 Python 内核。

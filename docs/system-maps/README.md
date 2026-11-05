@@ -42,6 +42,15 @@ Get-Content (Join-Path $run.FullName "timeline.md")
 
 注意：流程图展示的是源码中**存在**的路径，不代表每次运行都会经过所有可选分支。
 
+如果想把运行中的阶段实时映射到图节点，可以使用：
+
+```powershell
+python docs/system-maps/trace_to_map.py --system hermes_harness `
+  --run-dir "$env:TEMP/hermes_harness_demo/.hermes/runs/<timestamp>" --watch
+```
+
+该脚本输出 `stage → node`、事件类型和工具名；它不修改 Harness，也不读取 `.env`。
+
 ## 重新生成
 
 候选 JSON 在 `docs/system-maps/sources/`，输出 HTML 也在本目录。修改源码后：
@@ -54,3 +63,4 @@ node D:\.codex\skills\archify\bin\archify.mjs finalize workflow `
 ```
 
 四张图分别替换 source/output 路径即可。`--repo-root` 会把 source 引用固定到当前 Git 提交。
+

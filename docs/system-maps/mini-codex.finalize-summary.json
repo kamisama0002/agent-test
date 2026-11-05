@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\mini-codex.workflow.json",
+    "sha256": "35f39a56663c037a16395bf0481a1ecf154a7632f9db45ae90bfde15f6e99aed",
+    "bytes": 11255
+  },
+  "artifact": {
+    "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\mini-codex.html",
+    "sha256": "99903e1b113d312569e382f959a8e57d7c0ff1663274975fe7396a89bff97f16",
+    "bytes": 841221
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\mini-codex.finalize.json",
+    "summaryReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\mini-codex.finalize-summary.json",
+    "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\mini-codex.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-05T07:17:05.283Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4463,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

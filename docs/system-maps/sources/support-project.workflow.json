@@ -1,0 +1,248 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Support Project：五框架同一业务流",
+    "subtitle": "runner 统一分发到 5 个 adapter；共享 domain.py 负责订单、政策与退款",
+    "locale": "zh-CN",
+    "output": "docs/system-maps/support-project.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kamisama0002/agent-test.git",
+      "provider": "github",
+      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "link_mode": "web"
+    },
+    "views": [
+      {
+        "id": "compare",
+        "label": "比较五个框架",
+        "focus": [
+          "cli",
+          "runner",
+          "domain",
+          "langchain",
+          "langgraph",
+          "crewai",
+          "llamaindex",
+          "openai",
+          "result"
+        ],
+        "note": "trace 语义不完全相同"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "统一入口"
+    },
+    {
+      "id": "adapter",
+      "label": "框架 adapter"
+    },
+    {
+      "id": "result",
+      "label": "统一结果",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "dispatch",
+      "label": "CLI / runner",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "run",
+      "label": "框架执行",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "report",
+      "label": "结果对比",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [],
+  "nodes": [
+    {
+      "id": "cli",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "CLI / Notebook",
+      "sublabel": "--framework / --all",
+      "width": 150,
+      "sources": [
+        {
+          "path": "support_project/runner.py",
+          "line": 94,
+          "end_line": 130,
+          "label": "命令行入口"
+        }
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "runner",
+      "lane": "entry",
+      "col": 1,
+      "type": "backend",
+      "label": "Runner",
+      "sublabel": "动态 import adapter 并统一收集",
+      "width": 150,
+      "sources": [
+        {
+          "path": "support_project/runner.py",
+          "line": 32,
+          "end_line": 74,
+          "label": "框架注册与 run_one"
+        }
+      ],
+      "tag": "FrameworkResult",
+      "icon": "start"
+    },
+    {
+      "id": "domain",
+      "lane": "adapter",
+      "col": 2,
+      "type": "database",
+      "label": "Shared Domain",
+      "sublabel": "订单 / 政策 / 退款",
+      "width": 150,
+      "sources": [
+        {
+          "path": "support_project/domain.py",
+          "line": 45,
+          "end_line": 137,
+          "label": "共享业务域"
+        }
+      ],
+      "tag": "无框架依赖",
+      "icon": "database"
+    },
+    {
+      "id": "result",
+      "lane": "result",
+      "col": 5,
+      "type": "backend",
+      "label": "Result / 对比",
+      "sublabel": "answer + trace",
+      "width": 150,
+      "sources": [
+        {
+          "path": "support_project/runner.py",
+          "line": 32,
+          "end_line": 74,
+          "label": "FrameworkResult"
+        },
+        {
+          "path": "support_project/contracts.py",
+          "line": 8,
+          "end_line": 17,
+          "label": "统一结果结构"
+        }
+      ],
+      "tag": "CLI 输出",
+      "icon": "success"
+    },
+    {
+      "id": "dispatch",
+      "lane": "adapter",
+      "col": 3,
+      "type": "messagebus",
+      "label": "5 个 Framework Adapter",
+      "sublabel": "5 adapters · 5 种编排",
+      "tag": "由 runner 动态 import",
+      "icon": "messagebus",
+      "width": 190,
+      "sources": [
+        {
+          "path": "support_project/runner.py",
+          "line": 32,
+          "end_line": 74,
+          "label": "框架注册与 run_one"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-runner",
+      "from": "cli",
+      "to": "runner",
+      "variant": "default",
+      "label": "选择框架"
+    },
+    {
+      "id": "runner-domain",
+      "from": "runner",
+      "to": "domain",
+      "variant": "default",
+      "label": "共享业务函数"
+    },
+    {
+      "id": "domain-dispatch",
+      "from": "domain",
+      "to": "dispatch",
+      "label": "共享业务函数",
+      "variant": "emphasis"
+    },
+    {
+      "id": "dispatch-result",
+      "from": "dispatch",
+      "to": "result",
+      "label": "FrameworkResult",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "LangChain",
+      "items": [
+        "create_agent + 三个工具",
+        "真实 messages trace"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "LangGraph",
+      "items": [
+        "StateGraph 节点链",
+        "真实 state.trace"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "CrewAI",
+      "items": [
+        "analyst → auditor → writer",
+        "当前 trace 是静态标签"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "LlamaIndex",
+      "items": [
+        "VectorIndex + QueryEngineTool",
+        "FunctionAgent"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "OpenAI Agents SDK",
+      "items": [
+        "Triage → handoff",
+        "只暴露 last_agent"
+      ]
+    }
+  ]
+}

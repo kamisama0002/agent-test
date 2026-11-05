@@ -1,0 +1,506 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Claude-style Harness：LangGraph queryLoop",
+    "subtitle": "对应 claude_harness/harness.py 的 StateGraph 节点、条件边和权限层",
+    "locale": "zh-CN",
+    "output": "docs/system-maps/claude-harness.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kamisama0002/agent-test.git",
+      "provider": "github",
+      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "link_mode": "web"
+    },
+    "views": [
+      {
+        "id": "query",
+        "label": "正常 query",
+        "focus": [
+          "start",
+          "prepare",
+          "plan",
+          "model",
+          "tools",
+          "compact",
+          "finalize",
+          "verify"
+        ],
+        "note": "tools 后压缩再回到 model"
+      },
+      {
+        "id": "policy",
+        "label": "权限与可选能力",
+        "focus": [
+          "tools",
+          "permissions",
+          "hooks",
+          "mcp",
+          "subagents",
+          "events"
+        ],
+        "note": "权限判断发生在工具执行之前"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "context",
+      "label": "上下文与计划"
+    },
+    {
+      "id": "graph",
+      "label": "LangGraph query loop"
+    },
+    {
+      "id": "policy",
+      "label": "权限 / hooks / MCP"
+    },
+    {
+      "id": "output",
+      "label": "验证与运行产物",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "prepare",
+      "label": "准备上下文",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "query",
+      "label": "query model/tools",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "exit",
+      "label": "压缩、验证、落盘",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "graph_loop",
+      "label": "model ↔ tools ↔ compact",
+      "lane": "graph",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "policy_gate",
+      "label": "工具前门控",
+      "lane": "policy",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "security"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "context",
+      "col": 0,
+      "type": "external",
+      "label": "用户 query",
+      "sublabel": "task + workspace",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 65,
+          "end_line": 69,
+          "label": "run 入口"
+        }
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "prepare",
+      "lane": "context",
+      "col": 1,
+      "type": "database",
+      "label": "Prepare",
+      "sublabel": "CLAUDE.md + memory",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 139,
+          "end_line": 149,
+          "label": "prepare node"
+        },
+        {
+          "path": "claude_harness/context.py",
+          "line": 42,
+          "end_line": 73,
+          "label": "CLAUDE.md 发现"
+        }
+      ],
+      "tag": "CLAUDE.md"
+    },
+    {
+      "id": "plan",
+      "lane": "context",
+      "col": 2,
+      "type": "backend",
+      "label": "Plan / TodoWrite",
+      "sublabel": "TodoPlan steps",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 151,
+          "end_line": 183,
+          "label": "plan node"
+        }
+      ],
+      "tag": "TodoState"
+    },
+    {
+      "id": "model",
+      "lane": "graph",
+      "col": 3,
+      "type": "cloud",
+      "label": "Model Query",
+      "sublabel": "sampling + turns",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 185,
+          "end_line": 208,
+          "label": "model node"
+        }
+      ],
+      "tag": "AIMessage",
+      "icon": "cloud"
+    },
+    {
+      "id": "tools",
+      "lane": "graph",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Tool Round",
+      "sublabel": "permission → tool",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 214,
+          "end_line": 278,
+          "label": "tools node"
+        }
+      ],
+      "tag": "tool_use",
+      "icon": "messagebus"
+    },
+    {
+      "id": "compact",
+      "lane": "graph",
+      "col": 5,
+      "type": "database",
+      "label": "Compact",
+      "sublabel": "micro / full compact",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 283,
+          "end_line": 298,
+          "label": "compact node"
+        },
+        {
+          "path": "claude_harness/context.py",
+          "line": 205,
+          "end_line": 217,
+          "label": "maybe_compact"
+        }
+      ],
+      "tag": "上下文预算",
+      "icon": "database"
+    },
+    {
+      "id": "permissions",
+      "lane": "policy",
+      "col": 3,
+      "type": "security",
+      "label": "Permission Manager",
+      "sublabel": "permission modes",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/permissions.py",
+          "line": 98,
+          "end_line": 164,
+          "label": "权限决策"
+        },
+        {
+          "path": "claude_harness/harness.py",
+          "line": 223,
+          "end_line": 249,
+          "label": "工具前门控"
+        }
+      ],
+      "tag": "permission mode",
+      "icon": "security"
+    },
+    {
+      "id": "hooks",
+      "lane": "policy",
+      "col": 2,
+      "type": "backend",
+      "label": "Pre/Post Hooks",
+      "sublabel": "pre/post hooks",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/hooks.py",
+          "line": 1,
+          "end_line": 21,
+          "label": "HookManager"
+        },
+        {
+          "path": "claude_harness/harness.py",
+          "line": 81,
+          "end_line": 86,
+          "label": "hook 事件"
+        }
+      ],
+      "tag": "确定性扩展"
+    },
+    {
+      "id": "mcp",
+      "lane": "policy",
+      "col": 1,
+      "type": "messagebus",
+      "label": "MCP Tools",
+      "sublabel": "optional MCP",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 104,
+          "end_line": 123,
+          "label": "MCP 加载"
+        },
+        {
+          "path": "claude_harness/mcp_server.py",
+          "line": 23,
+          "end_line": 61,
+          "label": "MCP server"
+        }
+      ],
+      "tag": "可选",
+      "icon": "messagebus"
+    },
+    {
+      "id": "subagents",
+      "lane": "policy",
+      "col": 0,
+      "type": "messagebus",
+      "label": "Task Subagents",
+      "sublabel": "Task tools",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/multi_agent.py",
+          "line": 24,
+          "end_line": 83,
+          "label": "多 Agent 工具"
+        }
+      ],
+      "tag": "隔离上下文",
+      "icon": "messagebus"
+    },
+    {
+      "id": "events",
+      "lane": "output",
+      "col": 2,
+      "type": "database",
+      "label": "EventBus",
+      "sublabel": "JSONL events",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 42,
+          "end_line": 99,
+          "label": "运行装配"
+        },
+        {
+          "path": "mini_codex/events.py",
+          "line": 42,
+          "end_line": 113,
+          "label": "共享事件实现"
+        }
+      ],
+      "tag": "timeline",
+      "icon": "database"
+    },
+    {
+      "id": "finalize",
+      "lane": "output",
+      "col": 4,
+      "type": "backend",
+      "label": "Finalize",
+      "sublabel": "session memory",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 300,
+          "end_line": 314,
+          "label": "finalize node"
+        }
+      ],
+      "tag": "session memory",
+      "icon": "success"
+    },
+    {
+      "id": "verify",
+      "lane": "output",
+      "col": 5,
+      "type": "security",
+      "label": "Verify",
+      "sublabel": "exit code",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 358,
+          "end_line": 391,
+          "label": "verify"
+        }
+      ],
+      "tag": "exit code",
+      "icon": "security"
+    },
+    {
+      "id": "checkpoint",
+      "lane": "output",
+      "col": 1,
+      "type": "database",
+      "label": "InMemorySaver",
+      "sublabel": "in-memory only",
+      "width": 140,
+      "sources": [
+        {
+          "path": "claude_harness/harness.py",
+          "line": 316,
+          "end_line": 338,
+          "label": "StateGraph 编译"
+        }
+      ],
+      "tag": "非持久恢复",
+      "icon": "database"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-prepare",
+      "from": "start",
+      "to": "prepare",
+      "variant": "default",
+      "label": "query"
+    },
+    {
+      "id": "prepare-plan",
+      "from": "prepare",
+      "to": "plan",
+      "variant": "default"
+    },
+    {
+      "id": "plan-model",
+      "from": "plan",
+      "to": "model",
+      "variant": "default",
+      "label": "Todo context"
+    },
+    {
+      "id": "model-tools",
+      "from": "model",
+      "to": "tools",
+      "variant": "emphasis",
+      "label": "tool_calls"
+    },
+    {
+      "id": "tools-compact",
+      "from": "tools",
+      "to": "compact",
+      "variant": "default",
+      "label": "turn < max_turns"
+    },
+    {
+      "id": "compact-model",
+      "from": "compact",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "下一轮",
+      "role": "branch"
+    },
+    {
+      "id": "tools-finalize",
+      "from": "tools",
+      "to": "finalize",
+      "variant": "dashed",
+      "label": "max_turns",
+      "role": "branch"
+    },
+    {
+      "id": "permissions-hooks",
+      "from": "permissions",
+      "to": "hooks",
+      "variant": "security",
+      "label": "允许"
+    },
+    {
+      "id": "finalize-verify",
+      "from": "finalize",
+      "to": "verify",
+      "variant": "default",
+      "label": "graph 结束"
+    },
+    {
+      "id": "finalize-events",
+      "from": "finalize",
+      "to": "events",
+      "label": "写入事件",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "model-finalize",
+      "from": "model",
+      "to": "finalize",
+      "label": "no tool_calls",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "LangGraph 的真实边界",
+      "items": [
+        "节点、条件边和 thread_id 是真实代码",
+        "InMemorySaver 不是持久化恢复"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "图中的 skills 口径",
+      "items": [
+        "此 Harness 没有动态 SKILL.md",
+        "CLAUDE.md 和 session memory 才是指令/记忆层"
+      ]
+    }
+  ]
+}
