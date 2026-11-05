@@ -12,3 +12,11 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Hermes mini 运行时数据
+.hermes/
+**/.hermes/
+
+# Archify 候选与浏览器检查
+.archify/
+

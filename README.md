@@ -1,11 +1,12 @@
-# LangChain + 五框架 Agent + Mini Codex + Claude Harness
+# LangChain + 五框架 Agent + Mini Codex + Claude + Hermes mini
 
-这个项目现在包含三层内容：
+这个项目现在包含五层内容：
 
 1. **LangChain 核心能力教程**：15 个可独立运行的 Python 案例；
 2. **五框架售后工单小项目**：同一业务分别用 LangChain、LangGraph、CrewAI、LlamaIndex、OpenAI Agents SDK 实现；
 3. **Mini Codex**：用 LangChain 复刻 Codex 的开发 Agent Harness，包含上下文、规划、工具循环、验证和事件可视化。
 4. **Claude-style Harness**：用 LangGraph 复刻 Claude Code 的 `queryLoop`、`CLAUDE.md`、权限模式、TodoWrite、上下文压缩、子 Agent 和 MCP。
+5. **Hermes mini**：通用 Agent Harness，复刻 `MEMORY.md` / `USER.md`、`SKILL.md`、后台复盘、curator、session_search 和 toolset。
 
 所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 `deepseek-v4.1-flash`。
 
@@ -37,6 +38,13 @@ uv run python -m claude_harness --workspace $env:TEMP/claude_harness_demo `
   --task "用 Task/TaskOutput 委派 explore，调用 MCP repo_stats，修复 add 并运行测试" `
   --permission-mode acceptEdits --auto-approve --enable-mcp `
   --verify-command "python -m pytest -q"
+
+# Hermes mini：通用任务与长期学习
+Copy-Item examples/hermes_harness_demo $env:TEMP/hermes_harness_demo -Recurse -Force
+uv run python -m hermes_harness `
+  --workspace $env:TEMP/hermes_harness_demo `
+  --task "阅读 research.md，提炼三条结论；以后请先给结论再给依据。" `
+  --toolsets hermes
 
 # 离线测试
 uv run pytest
@@ -146,6 +154,45 @@ Notebook：[ClaudeHarness.ipynb](ClaudeHarness.ipynb)
 
 Claude 源码研究材料位于 `D:\workspace\agent\claudecode`，包括 `Claude-Code-Source-Study` 和恢复源码 `claude-code-sourcemap`。
 
+## Hermes mini：通用 Agent 的学习闭环
+
+Hermes 的重点不是“更会写代码”，而是**通用任务 + 长期成长**：
+
+```text
+prepare(SOUL/MEMORY/USER/Skills) → model ↔ tools → finalize → background_review
+```
+
+它复刻了 Hermes v0.22.6 的以下思路：
+
+- `MEMORY.md`：环境事实和项目约定；
+- `USER.md`：用户画像和稳定偏好；
+- `skills/SKILL.md`：程序性经验，`skills_list` 只给索引，`skill_view` 才加载全文；
+- `skill_manage`：创建、patch、添加 references/templates/scripts；
+- `curator`：14 天 stale、30 天 archive，只归档不删除，pinned 豁免；
+- `session_search`：SQLite FTS5 + 中文 bigram；
+- `toolset`：file / terminal / memory / skills / session_search / research / safe / coding；
+- `background_review`：回合后独立模型复盘，只允许写 memory/skills；
+- 事件写入 `events.jsonl`、`timeline.md`，并保存 `summary.md`。
+
+运行通用任务示例（会生成 `.hermes/`，已在 `.gitignore` 中忽略）：
+
+```powershell
+Copy-Item examples/hermes_harness_demo $env:TEMP/hermes_harness_demo -Recurse -Force
+uv run python -m hermes_harness `
+  --workspace $env:TEMP/hermes_harness_demo `
+  --task "阅读 research.md，提炼三条结论；以后请先给结论再给依据。" `
+  --toolsets hermes
+```
+
+第一次运行后，后台复盘可以写入 `.hermes/memories/USER.md` 和技能库；第二次运行会用新会话重新注入。
+
+详细说明：
+
+- [Hermes mini 源码对照与架构](docs/hermes-harness-architecture.md)
+- [Hermes / Codex / Claude Code 对比](docs/hermes-vs-codex-claude.md)
+- [HermesHarness.ipynb](HermesHarness.ipynb)
+- [源码级系统流程图](docs/system-maps/README.md)
+
 ## Jupyter Notebooks
 
 在 IDE 中打开 Notebook，并选择能够读取项目 `.venv` 的 Python 内核。
@@ -158,6 +205,7 @@ uv run python -m ipykernel install --user --name agent-test --display-name "Pyth
 
 | Notebook | 内容 |
 |---|---|
+| [HermesHarness.ipynb](HermesHarness.ipynb) | Hermes 记忆/Skills/会话检索/后台复盘/通用任务闭环 |
 | [LangChain测试.ipynb](LangChain测试.ipynb) | 15 个 LangChain 核心能力 + 小项目接入 |
 | [LangGraph测试.ipynb](LangGraph测试.ipynb) | StateGraph、条件路由、interrupt/HITL、状态历史、时间旅行、fork、Mermaid 可视化 |
 | [CrewAI测试.ipynb](CrewAI测试.ipynb) | Agent/Task/Crew、Flow、@router 条件分支、三角色项目 |
@@ -198,6 +246,7 @@ BAILIAN_EMBEDDING_MODEL=
 ├── 框架对比.ipynb
 ├── MiniCodexHarness.ipynb
 ├── ClaudeHarness.ipynb
+├── HermesHarness.ipynb
 ├── MultiAgentPatterns.ipynb
 ├── langchain_cases/                # LangChain 15 个独立案例
 ├── support_project/                # 五框架售后工单小项目
@@ -224,10 +273,19 @@ BAILIAN_EMBEDDING_MODEL=
 │   ├── multi_agent.py              # Task/SendMessage/TaskOutput
 │   ├── mcp_server.py               # 本地只读 MCP server
 │   └── harness.py                  # LangGraph queryLoop
+├── hermes_harness/                 # 通用 Agent + 记忆/技能/复盘 Harness
+│   ├── memory.py                   # MEMORY.md / USER.md 有界记忆
+│   ├── skills.py                   # SKILL.md / usage / curator
+│   ├── sessions.py                 # SQLite FTS5 会话检索
+│   ├── toolsets.py                 # toolset 裁剪
+│   ├── review.py                   # background review
+│   ├── tools.py                    # memory/skills/session/file/terminal
+│   └── harness.py                  # prepare/model/tools/finalize
 ├── agent_runtime/                  # 两套 Harness 共用的 mailbox runtime
 ├── examples/
 │   ├── mini_codex_demo/            # 可修复的最小 Python 项目
-│   └── claude_harness_demo/        # 带 CLAUDE.md 的最小 Python 项目
+│   ├── claude_harness_demo/        # 带 CLAUDE.md 的最小 Python 项目
+│   └── hermes_harness_demo/       # 通用任务与学习闭环演示
 ├── data/
 │   ├── langchain_guide.md          # LangChain RAG 示例数据
 │   └── support_policy.md           # 售后小项目政策库
@@ -238,6 +296,9 @@ BAILIAN_EMBEDDING_MODEL=
 ├── docs/multi-agent-communication.md   # 多 Agent 通信细节
 ├── docs/agent-systems-glossary.md      # Agent 名词表
 ├── docs/claude-vs-codex.md              # Claude/GPT 与 Harness 异同
+├── docs/hermes-harness-architecture.md # Hermes mini 源码对照
+├── docs/hermes-vs-codex-claude.md       # 通用 Agent 与开发 Agent 对比
+├── docs/system-maps/                    # Archify 源码级交互流程图
 ├── tests/
 ├── .env
 ├── .env.example
@@ -286,3 +347,5 @@ BAILIAN_EMBEDDING_MODEL=
 - SQL Agent 必须使用只读账号、白名单表、超时和行数限制。
 - 长期记忆的 namespace/key 必须由服务端根据登录身份生成。
 - 生产环境应把 InMemorySaver/InMemoryStore 换成持久化后端，并接入真实审计。
+
+

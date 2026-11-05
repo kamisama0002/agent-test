@@ -1,6 +1,6 @@
 # Agent Systems 名词表：从模型到 Harness
 
-这份表用于快速理解 Claude Code、Codex、Mini Codex 和 Claude-style Harness 里的名词。
+这份表用于快速理解 Claude Code、Codex、Mini Codex、Claude-style Harness 和 Hermes mini 里的名词。
 先记住一句话：
 
 > Agent = Model + Instructions + Context + Tools + Loop + Policy + State + Events
@@ -139,6 +139,25 @@ Claude Code 的多 Agent 机制更偏任务/团队：
 - `src/tasks/LocalAgentTask/`
 - `src/tools/AgentTool/forkSubagent.ts`
 
+### Hermes
+
+Hermes 把“通用任务 + 长期学习”放在第一位：
+
+- `MEMORY.md`：Agent 对环境的长期事实；
+- `USER.md`：用户画像、偏好和沟通习惯；
+- `SKILL.md`：可复用的程序性经验；
+- `skills/.usage.json`：技能使用和生命周期 sidecar；
+- `background review`：turn 结束后独立模型复盘；
+- `curator`：按时间把旧技能标 stale / archive；
+- `session_search`：SQLite FTS5 历史会话检索；
+- `toolset`：按场景决定模型能看到哪些工具。
+
+核心记忆边界：声明性记忆写 `MEMORY.md` / `USER.md`，程序性记忆写 `SKILL.md`；
+两者不要混在一起。Hermes 的 curator 只归档不删除，且默认只管理 `created_by: agent` 的技能。
+
+Hermes 主循环通常不是 LangGraph：它是过程式 turn loop，配合 SessionDB、文件 checkpoint、
+callback/stream 事件和后台 review。本项目用 LangGraph 表达只是为了教学可视化。
+
 ## 7. MCP
 
 | 名词 | 含义 |
@@ -166,6 +185,8 @@ Codex 和 Claude Code 都把 MCP 当作动态工具来源，而不是写死在�
 | Claude 简略 MCP | `claude_harness/mcp_server.py`、`claude_harness/mcp_client.py` |
 | 两套 Harness 共用 mailbox 运行时 | `agent_runtime/runtime.py` |
 | 两套 Harness 的阶段可视化 | `MiniCodexHarness.ipynb`、`ClaudeHarness.ipynb` |
+| Hermes 的记忆/技能/复盘 | `hermes_harness/`、`docs/hermes-harness-architecture.md` |
+| Hermes 的阶段可视化 | `HermesHarness.ipynb`、`docs/system-maps/` |
 
 ## 9. 学习顺序
 
@@ -174,4 +195,5 @@ Codex 和 Claude Code 都把 MCP 当作动态工具来源，而不是写死在�
 3. 看 `docs/claude-harness-architecture.md`，理解 `queryLoop`、`CLAUDE.md` 和权限。
 4. 读 `mini_codex/harness.py` 与 `claude_harness/harness.py`。
 5. 读工具和权限层，再看多 Agent/MCP。
-6. 最后跑两个 Notebook，对照控制台事件和 timeline。
+6. 最后跑三个 Harness Notebook，对照控制台事件、timeline 和源码流程图。
+
