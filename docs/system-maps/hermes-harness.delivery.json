@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "receiptId": "e97bcffd-25c2-47e9-83b8-4c1eae0773b5",
+  "receiptId": "bf151780-305e-4e3e-a795-8f6df3647619",
   "status": "current",
   "command": "deliver",
   "type": "workflow",
   "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\hermes-harness.workflow.json",
   "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\hermes-harness.html",
   "specification": {
-    "sha256": "57f1c2a21c1cc0bdb2bf1375ea0273ac67e93c08d410bb47c1eac99fad4ab494",
-    "bytes": 10190
+    "sha256": "9093b0a67d2f10d5c9af99486a9d507f05fd95ffabb8e3712e6d3239999d60d8",
+    "bytes": 11862
   },
   "artifact": {
-    "sha256": "77f133d460b2742e27d502b99820779c4956e8031b89f48664ea24c7f2bcc2e9",
-    "bytes": 836263
+    "sha256": "aa1a8a49df0d5bc6ae23c91e92eff629f633e204712b6f8c95b509607a5b1921",
+    "bytes": 841899
   }
 }

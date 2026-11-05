@@ -22,21 +22,22 @@ EVENT_TO_NODE: dict[str, dict[str, str]] = {
     "mini_codex": {
         "tool_started": "tools", "tool_finished": "tools", "plan_created": "plan",
         "verification_completed": "verify", "run_completed": "final",
-        "approval_decision": "approval", "plugin_tools_loaded": "plugins",
-        "mcp_tools_loaded": "mcp", "multi_agent_tools_loaded": "multi_agent",
+        "approval_decision": "extensions", "plugin_tools_loaded": "extensions",
+        "plugin_loaded": "extensions",
+        "mcp_tools_loaded": "extensions", "multi_agent_tools_loaded": "multi_agent",
     },
     "claude_harness": {
         "tool_started": "tools", "tool_finished": "tools", "permission_decision": "permissions",
         "hook_pre_tool": "hooks", "hook_post_tool": "hooks",
         "verification_completed": "verify", "query_completed": "finalize",
-        "plugin_tools_loaded": "plugins", "mcp_tools_loaded": "mcp",
+        "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions", "mcp_tools_loaded": "extensions",
     },
     "hermes_harness": {
         "context_prepared": "prepare", "memory_changed": "memory",
         "skill_viewed": "skills", "skill_changed": "skills",
         "review_completed": "review", "turn_completed": "finalize",
         "verification_completed": "verify", "approval_decision": "approval",
-        "plugin_tools_loaded": "plugins", "mcp_tools_loaded": "mcp",
+        "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions", "mcp_tools_loaded": "extensions",
         "multi_agent_tools_loaded": "multi_agent",
     },
 }

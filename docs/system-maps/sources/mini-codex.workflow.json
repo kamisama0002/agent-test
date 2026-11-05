@@ -11,7 +11,7 @@
     "repository": {
       "url": "https://github.com/kamisama0002/agent-test.git",
       "provider": "github",
-      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "revision": "9c41679f02380f4786da33581932b501da21098e",
       "link_mode": "web"
     },
     "views": [
@@ -62,6 +62,10 @@
       "id": "exit",
       "label": "验证与产物",
       "variant": "exception"
+    },
+    {
+      "id": "extensions",
+      "label": "运行时扩展"
     }
   ],
   "phases": [
@@ -117,8 +121,8 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 99,
-          "end_line": 103,
+          "line": 102,
+          "end_line": 107,
           "label": "run 入口"
         }
       ],
@@ -135,8 +139,8 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 112,
-          "end_line": 118,
+          "line": 118,
+          "end_line": 122,
           "label": "bootstrap stage"
         }
       ],
@@ -153,8 +157,8 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 120,
-          "end_line": 129,
+          "line": 123,
+          "end_line": 133,
           "label": "context stage"
         },
         {
@@ -177,14 +181,14 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 56,
-          "end_line": 97,
+          "line": 59,
+          "end_line": 100,
           "label": "规划与回退"
         },
         {
           "path": "mini_codex/harness.py",
-          "line": 131,
-          "end_line": 134,
+          "line": 134,
+          "end_line": 137,
           "label": "plan stage"
         }
       ],
@@ -201,9 +205,9 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 136,
-          "end_line": 177,
-          "label": "agent setup"
+          "line": 139,
+          "end_line": 191,
+          "label": "工具与扩展装配"
         }
       ],
       "tag": "tool binding"
@@ -219,15 +223,15 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 180,
-          "end_line": 211,
-          "label": "采样循环"
+          "line": 192,
+          "end_line": 213,
+          "label": "LangGraph loop 调度"
         },
         {
-          "path": "mini_codex/context.py",
-          "line": 117,
-          "end_line": 145,
-          "label": "上下文压缩"
+          "path": "agent_runtime/tool_loop.py",
+          "line": 46,
+          "end_line": 198,
+          "label": "LangGraph model/tools"
         }
       ],
       "tag": "ChatOpenAI",
@@ -244,9 +248,15 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 213,
-          "end_line": 261,
-          "label": "工具执行"
+          "line": 214,
+          "end_line": 291,
+          "label": "工具循环"
+        },
+        {
+          "path": "agent_runtime/tool_loop.py",
+          "line": 120,
+          "end_line": 198,
+          "label": "工具节点"
         }
       ],
       "tag": "ToolMessage",
@@ -263,8 +273,8 @@
       "sources": [
         {
           "path": "mini_codex/tools.py",
-          "line": 71,
-          "end_line": 259,
+          "line": 89,
+          "end_line": 280,
           "label": "build_tools"
         }
       ],
@@ -319,8 +329,8 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 263,
-          "end_line": 285,
+          "line": 294,
+          "end_line": 316,
           "label": "验证阶段"
         }
       ],
@@ -338,15 +348,9 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 287,
-          "end_line": 318,
+          "line": 318,
+          "end_line": 349,
           "label": "finalize"
-        },
-        {
-          "path": "mini_codex/harness.py",
-          "line": 327,
-          "end_line": 340,
-          "label": "RunResult"
         }
       ],
       "tag": "产物",
@@ -363,13 +367,36 @@
       "sources": [
         {
           "path": "mini_codex/harness.py",
-          "line": 320,
-          "end_line": 325,
+          "line": 351,
+          "end_line": 355,
           "label": "外层异常"
         }
       ],
       "tag": "错误",
       "icon": "failure"
+    },
+    {
+      "id": "extensions",
+      "lane": "extensions",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Runtime Extensions",
+      "sublabel": "plugins · MCP · graph loop",
+      "width": 160,
+      "sources": [
+        {
+          "path": "agent_runtime/plugins.py",
+          "line": 1,
+          "end_line": 169,
+          "label": "插件加载"
+        },
+        {
+          "path": "agent_runtime/tool_loop.py",
+          "line": 1,
+          "end_line": 198,
+          "label": "LangGraph loop"
+        }
+      ]
     }
   ],
   "edges": [
@@ -492,6 +519,14 @@
       "items": [
         "本系统没有 SKILL.md 加载器",
         "AGENTS.md 是项目指令，不是动态技能"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "扩展层",
+      "items": [
+        "插件、MCP、多 Agent 由运行时装配",
+        "LangGraph tool loop 默认启用，--engine loop 可对照"
       ]
     }
   ]

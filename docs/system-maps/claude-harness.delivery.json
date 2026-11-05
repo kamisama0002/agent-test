@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "receiptId": "d1806c88-181f-439a-9574-84283ad8be65",
+  "receiptId": "1f602b37-5608-45e9-bfda-9c57912c1080",
   "status": "current",
   "command": "deliver",
   "type": "workflow",
   "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\claude-harness.workflow.json",
   "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\claude-harness.html",
   "specification": {
-    "sha256": "090afa369c7ebefaa16f0da17fdfd672de715ea1aba16f521ee0f36fbccb64fc",
-    "bytes": 11597
+    "sha256": "b00ed464929e33fd088e09ff86be3896301d44424e6da4ed710057409619329a",
+    "bytes": 12435
   },
   "artifact": {
-    "sha256": "b12ca3c03a65aaf494fb79714472a8266b0f99f16aa7bed8dcd62ae332fe5799",
-    "bytes": 840594
+    "sha256": "92e79d5a0d8aaac7d41d03681ca03e463dd9be1ae4e7ac57841477ccc262c2df",
+    "bytes": 843108
   }
 }

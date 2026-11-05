@@ -80,6 +80,12 @@ uv run python docs/system-maps/live_viewer.py `
 
 服务只读取该 run 目录的 `events.jsonl` 和本目录里的静态 HTML，不读取 `.env`。
 
+也可以直接用统一入口，它会启动 Viewer 并自动跟随该 workspace 最新 run：
+
+```powershell
+uv run python main_mini.py --system hermes --workspace $env:TEMP/hermes_harness_demo
+```
+
 ![实时逐步可视化](live-viewer-preview.png)
 
 ## 重新生成

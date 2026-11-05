@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "receiptId": "c2fe415e-f4a5-48f8-9bd4-ed668ef36ff7",
+  "receiptId": "38b34128-ad41-4323-9e2d-76cdb112637f",
   "status": "current",
   "command": "deliver",
   "type": "workflow",
   "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\mini-codex.workflow.json",
   "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\mini-codex.html",
   "specification": {
-    "sha256": "35f39a56663c037a16395bf0481a1ecf154a7632f9db45ae90bfde15f6e99aed",
-    "bytes": 11255
+    "sha256": "37fef146f51297979f359034aa3c08e43b29d25250180452610515c8f1682a88",
+    "bytes": 12160
   },
   "artifact": {
-    "sha256": "99903e1b113d312569e382f959a8e57d7c0ff1663274975fe7396a89bff97f16",
-    "bytes": 841221
+    "sha256": "236c88f3e4aa909cda60ef812b5609aad6038ba97d2c34ae37348f928798620a",
+    "bytes": 843848
   }
 }

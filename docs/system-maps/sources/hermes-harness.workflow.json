@@ -11,7 +11,7 @@
     "repository": {
       "url": "https://github.com/kamisama0002/agent-test.git",
       "provider": "github",
-      "revision": "6900f54bd26cd850b006c48da25ecc839c356210",
+      "revision": "9c41679f02380f4786da33581932b501da21098e",
       "link_mode": "web"
     },
     "views": [
@@ -62,6 +62,10 @@
       "id": "review",
       "label": "后台学习闭环",
       "variant": "exception"
+    },
+    {
+      "id": "extensions",
+      "label": "运行时扩展"
     }
   ],
   "phases": [
@@ -116,8 +120,8 @@
       "sources": [
         {
           "path": "hermes_harness/harness.py",
-          "line": 156,
-          "end_line": 186,
+          "line": 207,
+          "end_line": 238,
           "label": "run 入口"
         }
       ],
@@ -140,9 +144,9 @@
         },
         {
           "path": "hermes_harness/harness.py",
-          "line": 99,
-          "end_line": 110,
-          "label": "工具绑定"
+          "line": 112,
+          "end_line": 160,
+          "label": "扩展工具装配"
         }
       ],
       "tag": "按场景裁剪",
@@ -159,8 +163,8 @@
       "sources": [
         {
           "path": "hermes_harness/harness.py",
-          "line": 188,
-          "end_line": 200,
+          "line": 240,
+          "end_line": 252,
           "label": "prepare_node"
         },
         {
@@ -183,8 +187,8 @@
       "sources": [
         {
           "path": "hermes_harness/harness.py",
-          "line": 201,
-          "end_line": 233,
+          "line": 253,
+          "end_line": 285,
           "label": "model_node"
         }
       ],
@@ -202,14 +206,14 @@
       "sources": [
         {
           "path": "hermes_harness/harness.py",
-          "line": 234,
-          "end_line": 260,
+          "line": 286,
+          "end_line": 318,
           "label": "tools_node"
         },
         {
           "path": "hermes_harness/tools.py",
           "line": 199,
-          "end_line": 340,
+          "end_line": 350,
           "label": "build_tools"
         }
       ],
@@ -227,15 +231,9 @@
       "sources": [
         {
           "path": "hermes_harness/harness.py",
-          "line": 262,
-          "end_line": 278,
+          "line": 319,
+          "end_line": 334,
           "label": "finalize_node"
-        },
-        {
-          "path": "hermes_harness/harness.py",
-          "line": 289,
-          "end_line": 343,
-          "label": "会话落盘"
         }
       ],
       "tag": "RunResult",
@@ -315,8 +313,8 @@
         },
         {
           "path": "hermes_harness/harness.py",
-          "line": 297,
-          "end_line": 325,
+          "line": 349,
+          "end_line": 380,
           "label": "review 调度"
         }
       ],
@@ -341,6 +339,69 @@
       ],
       "tag": "生命周期",
       "icon": "neutral"
+    },
+    {
+      "id": "extensions",
+      "lane": "extensions",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Runtime Extensions",
+      "sublabel": "plugins · MCP · approval",
+      "width": 160,
+      "sources": [
+        {
+          "path": "agent_runtime/plugins.py",
+          "line": 1,
+          "end_line": 169,
+          "label": "插件加载"
+        },
+        {
+          "path": "agent_runtime/approval.py",
+          "line": 1,
+          "end_line": 63,
+          "label": "审批"
+        }
+      ]
+    },
+    {
+      "id": "multi_agent",
+      "lane": "extensions",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Hermes Subagents",
+      "sublabel": "delegate · send · wait",
+      "width": 150,
+      "sources": [
+        {
+          "path": "hermes_harness/multi_agent.py",
+          "line": 1,
+          "end_line": 69,
+          "label": "多 Agent 工具"
+        }
+      ]
+    },
+    {
+      "id": "approval",
+      "lane": "extensions",
+      "col": 3,
+      "type": "security",
+      "label": "Approval Gate",
+      "sublabel": "auto · ask · deny",
+      "width": 145,
+      "sources": [
+        {
+          "path": "agent_runtime/approval.py",
+          "line": 1,
+          "end_line": 63,
+          "label": "审批策略"
+        },
+        {
+          "path": "hermes_harness/tools.py",
+          "line": 70,
+          "end_line": 90,
+          "label": "工具审批"
+        }
+      ]
     }
   ],
   "edges": [
@@ -434,6 +495,14 @@
         "真实 Hermes 主循环不用 LangGraph",
         "本项目为教学把阶段拆成图",
         "未复制 gateway/cron/远程 sandbox"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "扩展层",
+      "items": [
+        "插件、MCP、多 Agent、审批都在 run 开始前装配",
+        "MCP 和 delegate_task 只暴露最小只读工具面"
       ]
     }
   ]
