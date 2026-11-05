@@ -35,17 +35,27 @@ DIAGRAM_FILES = {
 
 
 class TraceState:
-    def __init__(self, run_dir: Path, system: str) -> None:
-        self.run_dir = run_dir.resolve()
+    def __init__(self, run_dir: Path | None, system: str, *, workspace: Path | None = None, follow_latest: bool = False) -> None:
+        self.run_dir = run_dir.resolve() if run_dir is not None else None
+        self.workspace = workspace.resolve() if workspace is not None else None
+        self.follow_latest = follow_latest
         self.system = system
         self.lock = threading.Lock()
         self.cache: list[dict] = []
         self.offset = 0
 
     def refresh(self) -> list[dict]:
-        """增量读取 events.jsonl，避免每次轮询重扫整个文件。"""
+        """增量读取 events.jsonl；follow_latest 时自动切换最新 run。"""
 
         with self.lock:
+            if self.follow_latest and self.workspace is not None:
+                candidate = find_latest_run_dir(self.workspace, self.system)
+                if candidate is not None and candidate != self.run_dir:
+                    self.run_dir = candidate
+                    self.cache = []
+                    self.offset = 0
+            if self.run_dir is None:
+                return list(self.cache)
             path = self.run_dir / "events.jsonl"
             if not path.exists():
                 return list(self.cache)
@@ -65,7 +75,7 @@ class TraceState:
         rows = self.refresh()
         return {
             "system": self.system,
-            "run_dir": str(self.run_dir),
+            "run_dir": str(self.run_dir) if self.run_dir is not None else "",
             "events": rows,
             "count": len(rows),
             "mapping": STAGE_TO_NODE.get(self.system, {}),
@@ -119,7 +129,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_file(target)
 
 
-def latest_run_dir(workspace: Path, system: str) -> Path:
+def find_latest_run_dir(workspace: Path, system: str) -> Path | None:
     roots = {
         "mini_codex": workspace / ".mini_codex" / "runs",
         "claude_harness": workspace / ".claude" / "runs",
@@ -127,11 +137,18 @@ def latest_run_dir(workspace: Path, system: str) -> Path:
     }
     root = roots.get(system)
     if root is None or not root.is_dir():
-        raise SystemExit(f"找不到 {system} 的运行目录，请显式传 --run-dir")
+        return None
     runs = [item for item in root.iterdir() if (item / "events.jsonl").is_file()]
     if not runs:
-        raise SystemExit(f"{root} 里还没有 events.jsonl")
+        return None
     return max(runs, key=lambda item: item.stat().st_mtime)
+
+
+def latest_run_dir(workspace: Path, system: str) -> Path:
+    run = find_latest_run_dir(workspace, system)
+    if run is None:
+        raise SystemExit(f"{system} 还没有可用的 events.jsonl，请先运行一次案例")
+    return run
 
 
 def main() -> int:
@@ -143,10 +160,12 @@ def main() -> int:
     parser.add_argument("--open", action="store_true", help="启动后打开浏览器")
     args = parser.parse_args()
 
-    run_dir = Path(args.run_dir).resolve() if args.run_dir else latest_run_dir(Path(args.workspace).resolve(), args.system)
-    if not run_dir.is_dir():
+    workspace = Path(args.workspace).resolve()
+    follow_latest = args.run_dir is None
+    run_dir = Path(args.run_dir).resolve() if args.run_dir else find_latest_run_dir(workspace, args.system)
+    if run_dir is not None and not run_dir.is_dir():
         raise SystemExit(f"run-dir 不存在：{run_dir}")
-    state = TraceState(run_dir, args.system)
+    state = TraceState(run_dir, args.system, workspace=workspace, follow_latest=follow_latest)
 
     def handler_factory(*handler_args, **handler_kwargs):
         return Handler(*handler_args, state=state, **handler_kwargs)
@@ -154,7 +173,7 @@ def main() -> int:
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_factory)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"live viewer: {url}")
-    print(f"run dir: {run_dir}")
+    print(f"run dir: {run_dir or '(waiting for first run)'}")
     print(f"system: {args.system}")
     if args.open:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()

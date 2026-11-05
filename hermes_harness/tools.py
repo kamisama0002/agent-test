@@ -25,6 +25,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from agent_runtime.approval import ApprovalManager
+
 from .memory import MemoryStore
 from .sessions import SessionStore
 from .skills import SkillStore
@@ -42,6 +44,7 @@ class ToolContext:
     command_timeout: int = 60
     todos: list[dict[str, Any]] = field(default_factory=list)
     viewed_skills: set[str] = field(default_factory=set)
+    approval: ApprovalManager = field(default_factory=ApprovalManager)
 
 
 def _json(data: Any) -> str:
@@ -84,6 +87,14 @@ def _emit(ctx: ToolContext, event: str, message: str = "", **data: Any) -> None:
         ctx.event_bus.emit(event, "tools", message, **data)
 
 
+def _approval_gate(ctx: ToolContext, name: str, args: dict[str, Any], *, destructive: bool = False) -> str | None:
+    decision = ctx.approval.decide(name, args, destructive=destructive)
+    _emit(ctx, "approval_decision", decision.reason, tool=name, behavior=decision.behavior)
+    if decision.allowed:
+        return None
+    return f"ERROR: 审批拒绝：{decision.reason}"
+
+
 def _build_memory_tool(ctx: ToolContext):
     @tool(
         "memory",
@@ -100,6 +111,9 @@ def _build_memory_tool(ctx: ToolContext):
         new_text: str = "",
         operations: list[dict[str, Any]] | None = None,
     ) -> str:
+        denied = _approval_gate(ctx, "memory", {"action": action, "target": target})
+        if denied:
+            return denied
         try:
             if action == "add":
                 result = ctx.memory.add(target, content)
@@ -166,6 +180,9 @@ def _build_skill_tools(ctx: ToolContext):
         existing = ctx.skills.find(name)
         if existing is not None and action in {"patch", "add_file", "remove_file"} and name not in ctx.viewed_skills:
             return "ERROR: 修改已有技能前必须先调用 skill_view(name)"
+        denied = _approval_gate(ctx, "skill_manage", {"action": action, "name": name})
+        if denied:
+            return denied
         try:
             if action in {"create", "patch"}:
                 path = ctx.skills.save(
@@ -227,6 +244,9 @@ def build_tools(ctx: ToolContext, tool_names: tuple[str, ...] | list[str] | None
         target = _safe_workspace_path(ctx, path)
         if _is_sensitive(target) or ".hermes" in target.parts:
             return f"ERROR: 安全策略禁止写入敏感文件：{path}"
+        denied = _approval_gate(ctx, "write_file", {"path": path})
+        if denied:
+            return denied
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         _emit(ctx, "file_written", path)
@@ -237,6 +257,9 @@ def build_tools(ctx: ToolContext, tool_names: tuple[str, ...] | list[str] | None
         target = _safe_workspace_path(ctx, path)
         if _is_sensitive(target) or ".hermes" in target.parts:
             return f"ERROR: 安全策略禁止修改敏感文件：{path}"
+        denied = _approval_gate(ctx, "patch", {"path": path})
+        if denied:
+            return denied
         if not target.is_file():
             return f"ERROR: 文件不存在：{path}"
         before = target.read_text(encoding="utf-8", errors="replace")
@@ -290,6 +313,9 @@ def build_tools(ctx: ToolContext, tool_names: tuple[str, ...] | list[str] | None
             return f"ERROR: 命令解析失败：{exc}"
         if not argv:
             return "ERROR: 命令为空。"
+        denied = _approval_gate(ctx, "terminal", {"command": command}, destructive=True)
+        if denied:
+            return denied
         allowed = {
             "python", "python3", "pytest", "uv", "git", "ruff", "mypy", "node", "npm",
             "pnpm", "yarn", "cargo", "go", "dotnet", "ls", "dir", "rg", "grep", "find",

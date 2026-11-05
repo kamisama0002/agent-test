@@ -48,6 +48,14 @@ uv run python -m hermes_harness `
   --task "阅读 research.md，提炼三条结论；以后请先给结论再给依据。" `
   --toolsets hermes
 
+# 三套 mini 的统一交互入口（自动启动实时 Viewer）
+uv run python main_mini.py --system codex
+uv run python main_mini.py --system claude
+uv run python main_mini.py --system hermes
+
+# 只跑一次、关闭实时 Viewer
+uv run python main_mini.py --system hermes --task "总结当前项目" --no-viewer
+
 # 离线测试
 uv run pytest
 ```
@@ -214,6 +222,11 @@ uv run python docs/system-maps/live_viewer.py --system hermes_harness `
 
 
 ![实时逐步可视化](docs/system-maps/live-viewer-preview.png)
+## Runtime Extensions
+
+- [插件、审批、MCP、多 Agent 与统一入口](docs/runtime-extensions.md)
+- `main_mini.py`：三套 mini 的交互式统一入口，自动启动实时 Viewer
+
 ## Jupyter Notebooks
 
 在 IDE 中打开 Notebook，并选择能够读取项目 `.venv` 的 Python 内核。
@@ -259,6 +272,7 @@ BAILIAN_EMBEDDING_MODEL=
 ```text
 .
 ├── main.py                         # LangChain 15 案例入口
+├── main_mini.py                    # 三套 mini 的统一交互入口
 ├── LangChain测试.ipynb
 ├── LangGraph测试.ipynb
 ├── CrewAI测试.ipynb
@@ -311,6 +325,7 @@ BAILIAN_EMBEDDING_MODEL=
 │   ├── langchain_guide.md          # LangChain RAG 示例数据
 │   └── support_policy.md           # 售后小项目政策库
 ├── docs/beginner-guide.md          # 小白学习路线与运行指南
+├── docs/runtime-extensions.md      # 插件/审批/MCP/多 Agent
 ├── docs/framework-selection.md     # 五框架选型指南
 ├── docs/framework-feature-map.md   # 特色能力与案例位置索引
 ├── docs/mini-codex-architecture.md # Codex Harness 对照与实现说明

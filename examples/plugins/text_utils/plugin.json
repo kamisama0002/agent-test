@@ -1,0 +1,19 @@
+{
+  "name": "text-utils",
+  "version": "0.1.0",
+  "description": "一个最小只读插件示例：统计文本和关键词",
+  "tools": [
+    {
+      "name": "word_count",
+      "description": "统计一段文本的词数和字符数",
+      "entry": "plugin.py:word_count",
+      "read_only": true
+    },
+    {
+      "name": "keyword_scan",
+      "description": "统计文本中出现的关键词次数",
+      "entry": "plugin.py:keyword_scan",
+      "read_only": true
+    }
+  ]
+}

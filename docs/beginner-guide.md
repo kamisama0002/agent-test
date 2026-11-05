@@ -753,7 +753,21 @@ Codex 和 Claude 只需换：
 - 如果还没跑案例，先运行案例，或显式传 `--run-dir`；
 - Support Project 没有 EventBus，只有最终 trace，所以只做静态对照图。
 
-### 11.3 看图的顺序
+### 11.3 三套 mini 的统一入口
+
+如果不想分别记三个 `python -m ...` 命令，可以用：
+
+```powershell
+uv run python main_mini.py --system codex
+uv run python main_mini.py --system claude
+uv run python main_mini.py --system hermes
+```
+
+它会自动复制对应 demo 到临时目录，并启动实时 Viewer；每轮对话产生的新 run 会自动出现在图中。
+
+不需要 Viewer 时加 `--no-viewer`；只跑一次时加 `--task`。
+
+### 11.4 看图的顺序
 
 1. 先看 prepare/context；
 2. 再看 model；
@@ -968,6 +982,7 @@ Notebook 单元会保存输出。即使你删除了代码，输出里仍可能�
 - `docs/hermes-vs-codex-claude.md`
 - `docs/claude-vs-codex.md`
 - `docs/multi-agent-communication.md`
+- `docs/runtime-extensions.md`
 
 看源码图：
 

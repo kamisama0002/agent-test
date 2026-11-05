@@ -23,7 +23,7 @@ from .harness import MiniCodexHarness
 def main() -> int:
     setup_utf8()
     console = Console()
-    parser = argparse.ArgumentParser(description="Mini Codex：开发场景 LangChain Agent Harness")
+    parser = argparse.ArgumentParser(description="Mini Codex：LangGraph 编排的开发 Agent Harness")
     parser.add_argument("--workspace", default=".", help="代码工作区")
     parser.add_argument("--task", required=True, help="开发任务")
     parser.add_argument("--max-steps", type=int, default=10, help="最多模型采样轮数")
@@ -35,6 +35,9 @@ def main() -> int:
     parser.add_argument("--enable-multi-agent", action="store_true", help="加载 spawn/send/wait 子 Agent 工具")
     parser.add_argument("--enable-mcp", action="store_true", help="加载只读 MCP 工具")
     parser.add_argument("--mcp-server-script", default=None, help="MCP server Python 文件")
+    parser.add_argument("--plugin-dir", action="append", default=[], help="本地插件目录，可重复传入")
+    parser.add_argument("--approval-mode", choices=["auto", "ask", "deny"], default="auto", help="写入/命令审批策略")
+    parser.add_argument("--engine", choices=["langgraph", "loop"], default="langgraph", help="模型/工具循环实现")
     args = parser.parse_args()
 
     config = HarnessConfig(
@@ -48,6 +51,9 @@ def main() -> int:
         enable_multi_agent=args.enable_multi_agent,
         enable_mcp=args.enable_mcp,
         mcp_server_script=Path(args.mcp_server_script) if args.mcp_server_script else None,
+        plugin_dirs=tuple(Path(item) for item in args.plugin_dir),
+        approval_mode=args.approval_mode,
+        engine=args.engine,
     )
     result = MiniCodexHarness(config).run(args.task)
 

@@ -20,6 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from langchain_cases.common import build_chat_model, message_text
+from agent_runtime.plugins import PluginRegistry
 from .config import ClaudeHarnessConfig
 from .context import ClaudeContextManager
 from .events import EventBus
@@ -99,6 +100,23 @@ class ClaudeHarness:
             command_timeout=self.config.command_timeout,
         )
         tools, tool_meta = build_tools(tool_ctx)
+        plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
+        plugin_tools = plugin_registry.load()
+        for item in plugin_tools:
+            tools.append(item)
+            spec = plugin_registry.metadata(item.name)
+            tool_meta[item.name] = ToolPermission(
+                name=item.name,
+                read_only=bool(spec and spec.read_only),
+                destructive=bool(spec and spec.destructive),
+            )
+        if plugin_tools:
+            bus.emit(
+                "plugin_tools_loaded",
+                "prepare",
+                f"loaded {len(plugin_tools)} plugin tools",
+                tools=[item.name for item in plugin_tools],
+            )
         raw_model = build_chat_model()
 
         # 可选 MCP：动态发现只读工具并合入同一个 Tool 池。

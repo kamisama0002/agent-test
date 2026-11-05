@@ -33,6 +33,11 @@ def main() -> int:
     parser.add_argument("--no-console", action="store_true", help="不打印实时事件")
     parser.add_argument("--no-review", action="store_true", help="关闭后台记忆/技能复盘")
     parser.add_argument("--review-max-turns", type=int, default=6, help="复盘模型最多轮数")
+    parser.add_argument("--enable-multi-agent", action="store_true", help="加载 Hermes delegate_task 子 Agent 工具")
+    parser.add_argument("--enable-mcp", action="store_true", help="加载只读 MCP 工具")
+    parser.add_argument("--mcp-server-script", default=None, help="MCP server Python 文件")
+    parser.add_argument("--plugin-dir", action="append", default=[], help="本地插件目录，可重复传入")
+    parser.add_argument("--approval-mode", choices=["auto", "ask", "deny"], default="auto", help="写入/命令审批策略")
     args = parser.parse_args()
 
     config = HermesHarnessConfig(
@@ -45,6 +50,11 @@ def main() -> int:
         console=not args.no_console,
         enable_background_review=not args.no_review,
         review_max_turns=args.review_max_turns,
+        enable_multi_agent=args.enable_multi_agent,
+        enable_mcp=args.enable_mcp,
+        mcp_server_script=Path(args.mcp_server_script) if args.mcp_server_script else None,
+        plugin_dirs=tuple(Path(item) for item in args.plugin_dir),
+        approval_mode=args.approval_mode,
     )
     harness = HermesHarness(config)
     try:

@@ -30,6 +30,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 
 from langchain_cases.common import build_chat_model, message_text
+from agent_runtime.approval import ApprovalManager
+from agent_runtime.plugins import PluginRegistry
 from mini_codex.events import EventBus
 from .config import HermesHarnessConfig
 from .context import HermesContextManager
@@ -37,6 +39,7 @@ from .memory import MemoryStore
 from .review import BackgroundReview, ReviewResult
 from .sessions import SessionStore
 from .skills import SkillStore
+from .multi_agent import HERMES_READ_ONLY_TOOL_NAMES, build_hermes_agent_tools
 from .tools import ToolContext, build_tools
 from .toolsets import describe_toolsets, resolve_toolsets
 
@@ -95,14 +98,61 @@ class HermesHarness:
             skills=self.skills,
             sessions=self.sessions,
             command_timeout=config.command_timeout,
+            approval=ApprovalManager(config.approval_mode),
         )
         self.tool_names = resolve_toolsets(config.toolsets)
-        self.tools = build_tools(self.tool_ctx, self.tool_names)
+        self.base_tools = build_tools(self.tool_ctx, self.tool_names)
+        self.tools = list(self.base_tools)
         self.tool_map = {tool.name: tool for tool in self.tools}
         self.model = model or build_chat_model()
         self.review_model = review_model
         self.bound_model = self.model.bind_tools(self.tools) if self.tools else self.model
         self._review_threads: list[threading.Thread] = []
+
+    def _refresh_runtime_tools(self, bus: EventBus) -> None:
+        """在每次 run 开始时装配插件、MCP 和 Hermes 子 Agent 工具。"""
+
+        tools = list(self.base_tools)
+        plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
+        plugin_tools = plugin_registry.load()
+        if plugin_tools:
+            tools.extend(plugin_tools)
+            bus.emit(
+                "plugin_tools_loaded",
+                "bootstrap",
+                f"loaded {len(plugin_tools)} plugin tools",
+                tools=[item.name for item in plugin_tools],
+            )
+        if self.config.enable_mcp:
+            from .mcp_client import load_mcp_tools
+
+            server_script = self.config.mcp_server_script or Path(__file__).resolve().parent.parent / "claude_harness" / "mcp_server.py"
+            try:
+                mcp_tools = load_mcp_tools(self.config.workspace, server_script)
+                tools.extend(mcp_tools)
+                bus.emit(
+                    "mcp_tools_loaded",
+                    "bootstrap",
+                    f"loaded {len(mcp_tools)} MCP tools",
+                    tools=[item.name for item in mcp_tools],
+                )
+            except Exception as exc:
+                bus.emit("error", "bootstrap", f"MCP 加载失败，继续无 MCP 运行：{exc}")
+        if self.config.enable_multi_agent:
+            read_only_tools = [item for item in tools if item.name in HERMES_READ_ONLY_TOOL_NAMES]
+            tools.extend(build_hermes_agent_tools(self.model, read_only_tools, bus))
+            bus.emit(
+                "multi_agent_tools_loaded",
+                "bootstrap",
+                f"loaded {len(tools)} total tools",
+                tools=[item.name for item in tools],
+            )
+        deduped: dict[str, Any] = {}
+        for tool in tools:
+            deduped[tool.name] = tool
+        self.tools = list(deduped.values())
+        self.tool_map = {tool.name: tool for tool in self.tools}
+        self.bound_model = self.model.bind_tools(self.tools) if self.tools else self.model
 
     def _append_session_message(self, session_id: str, message: Any) -> None:
         role = getattr(message, "type", message.__class__.__name__)
@@ -165,6 +215,7 @@ class HermesHarness:
             metadata={"toolsets": list(self.config.toolsets), "run_id": run_id},
         )
         self.tool_ctx.event_bus = bus
+        self._refresh_runtime_tools(bus)
         final = ""
         turns = 0
         review_result: ReviewResult | None = None

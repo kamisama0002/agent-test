@@ -40,6 +40,7 @@ class ClaudeHarnessConfig:
     auto_approve: bool = False
     enable_mcp: bool = False
     mcp_server_script: Path | None = None
+    plugin_dirs: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
         self.workspace = Path(self.workspace).resolve()
@@ -51,5 +52,9 @@ class ClaudeHarnessConfig:
             self.trace_root = Path(self.trace_root).resolve()
         if self.mcp_server_script is not None:
             self.mcp_server_script = Path(self.mcp_server_script).resolve()
+        self.plugin_dirs = tuple(Path(item).resolve() for item in self.plugin_dirs)
+        for plugin_dir in self.plugin_dirs:
+            if not plugin_dir.is_dir():
+                raise ValueError(f"插件目录不存在：{plugin_dir}")
         if self.compact_threshold > self.token_budget:
             raise ValueError("compact_threshold 不能大于 token_budget")

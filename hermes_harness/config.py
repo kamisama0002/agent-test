@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 
 @dataclass
@@ -33,6 +34,11 @@ class HermesHarnessConfig:
     enable_background_review: bool = True
     background_review_async: bool = False
     review_max_turns: int = 6
+    enable_multi_agent: bool = False
+    enable_mcp: bool = False
+    mcp_server_script: Path | None = None
+    plugin_dirs: tuple[Path, ...] = ()
+    approval_mode: Literal["auto", "ask", "deny"] = "auto"
 
     def __post_init__(self) -> None:
         self.workspace = Path(self.workspace).resolve()
@@ -49,6 +55,14 @@ class HermesHarnessConfig:
             self.trace_root = self.hermes_home / "runs"
         else:
             self.trace_root = Path(self.trace_root).resolve()
+        if self.mcp_server_script is not None:
+            self.mcp_server_script = Path(self.mcp_server_script).resolve()
+        self.plugin_dirs = tuple(Path(item).resolve() for item in self.plugin_dirs)
+        for plugin_dir in self.plugin_dirs:
+            if not plugin_dir.is_dir():
+                raise ValueError(f"插件目录不存在：{plugin_dir}")
+        if self.approval_mode not in {"auto", "ask", "deny"}:
+            raise ValueError("approval_mode 只能是 auto / ask / deny")
 
         # 约定目录和 Hermes 源码一致：记忆、技能、会话、运行记录彼此隔离。
         for name in ("memories", "skills", "sessions", "runs"):

@@ -42,6 +42,7 @@ def main() -> int:
     parser.add_argument("--no-console", action="store_true")
     parser.add_argument("--enable-mcp", action="store_true", help="加载本地只读 MCP 工具")
     parser.add_argument("--mcp-server-script", default=None, help="MCP server Python 文件")
+    parser.add_argument("--plugin-dir", action="append", default=[], help="本地插件目录，可重复传入")
     args = parser.parse_args()
 
     config = ClaudeHarnessConfig(
@@ -57,6 +58,7 @@ def main() -> int:
         console=not args.no_console,
         enable_mcp=args.enable_mcp,
         mcp_server_script=Path(args.mcp_server_script) if args.mcp_server_script else None,
+        plugin_dirs=tuple(Path(item) for item in args.plugin_dir),
     )
     result = ClaudeHarness(config).run(args.task)
 

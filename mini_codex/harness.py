@@ -25,6 +25,8 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from langchain_cases.common import build_chat_model, message_text
+from agent_runtime.approval import ApprovalManager
+from agent_runtime.plugins import PluginRegistry
 from .config import HarnessConfig
 from .context import ContextManager
 from .events import EventBus
@@ -50,13 +52,13 @@ class RunResult:
 class MiniCodexHarness:
     """开发场景的 LangChain Agent Harness。"""
 
-    def __init__(self, config: HarnessConfig) -> None:
+    def __init__(self, config: HarnessConfig, *, model: Any | None = None) -> None:
         self.config = config
+        self.model = model
 
     def _plan(self, task: str, context: ContextManager, bus: EventBus) -> Plan:
         """规划阶段：先产出可检查的步骤，再开始工具循环。"""
 
-        planner = build_chat_model().with_structured_output(Plan, method="function_calling")
         prompt = [
             SystemMessage(
                 content=(
@@ -76,6 +78,7 @@ class MiniCodexHarness:
             ),
         ]
         try:
+            planner = (self.model or build_chat_model()).with_structured_output(Plan, method="function_calling")
             result = planner.invoke(prompt)
             if isinstance(result, Plan):
                 plan = result
@@ -143,8 +146,19 @@ class MiniCodexHarness:
                     commands=commands,
                     event_bus=bus,
                     command_timeout=self.config.command_timeout,
+                    approval=ApprovalManager(self.config.approval_mode),
                 )
                 tools = build_tools(tool_ctx)
+                plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
+                plugin_tools = plugin_registry.load()
+                if plugin_tools:
+                    tools.extend(plugin_tools)
+                    bus.emit(
+                        "plugin_tools_loaded",
+                        "agent",
+                        f"loaded {len(plugin_tools)} plugin tools",
+                        tools=[item.name for item in plugin_tools],
+                    )
                 if self.config.enable_mcp:
                     from .mcp_client import load_mcp_tools
 
@@ -170,95 +184,112 @@ class MiniCodexHarness:
                     ]
                     tools.extend(
                         build_codex_agent_tools(
-                            build_chat_model(), read_only_tools, bus
+                            self.model or build_chat_model(), read_only_tools, bus
                         )
                     )
                 tool_map = {item.name: item for item in tools}
-                model = build_chat_model().bind_tools(tools)
-                seen_calls: dict[str, int] = {}
+                model = (self.model or build_chat_model()).bind_tools(tools)
+                if self.config.engine == "langgraph":
+                    from agent_runtime.tool_loop import LangGraphToolLoop
 
-                for step in range(1, self.config.max_steps + 1):
-                    messages, removed = context.compact(messages)
-                    if removed:
-                        bus.emit(
-                            "context_compacted",
-                            "agent",
-                            f"上下文压缩：省略 {removed} 条旧消息",
-                            removed=removed,
-                            estimated_tokens=ContextManager.estimate_tokens(messages),
-                        )
-
-                    bus.emit("model_request", "agent", f"第 {step} 次模型采样", step=step)
-                    try:
-                        response: AIMessage = model.invoke(messages)
-                    except Exception as exc:
-                        errors.append(f"model: {exc}")
-                        bus.emit("error", "agent", f"模型调用失败：{exc}")
-                        break
-
-                    messages.append(response)
-                    text = message_text(response)
-                    if text:
-                        bus.emit("agent_message", "agent", text)
-                    usage = getattr(response, "usage_metadata", None) or {}
-                    if usage:
-                        bus.emit("token_usage", "agent", "token usage", **usage)
-
-                    tool_calls = list(getattr(response, "tool_calls", None) or [])
-                    if not tool_calls:
-                        final_answer = text or "模型没有返回最终文本。"
-                        bus.emit("turn_completed", "agent", "模型完成本轮，无更多工具调用", step=step)
-                        break
-
-                    for call in tool_calls:
-                        name = call.get("name") or "unknown"
-                        args = call.get("args") or {}
-                        call_id = call.get("id") or f"call-{uuid.uuid4().hex[:8]}"
-                        signature = name + ":" + json.dumps(args, ensure_ascii=False, sort_keys=True)
-                        seen_calls[signature] = seen_calls.get(signature, 0) + 1
-                        if seen_calls[signature] > 2:
-                            errors.append(f"repeated_tool_call:{name}")
-                            bus.emit("error", "agent", f"检测到重复工具调用：{name}")
-                            final_answer = "停止：模型重复调用同一个工具，需要人工调整提示词或工具结果。"
-                            break
-
-                        bus.emit("tool_started", "agent", "", tool=name, args=args, call_id=call_id)
-                        tool_started = time.perf_counter()
-                        try:
-                            target = tool_map.get(name)
-                            if target is None:
-                                output = f"ERROR: 未知工具 {name}"
-                                status = "error"
-                            else:
-                                output = target.invoke(args)
-                                status = "ok"
-                        except Exception as exc:
-                            output = f"ERROR: {type(exc).__name__}: {exc}"
-                            status = "error"
-                            errors.append(f"{name}: {exc}")
-                        elapsed_ms = (time.perf_counter() - tool_started) * 1000
-                        messages.append(
-                            ToolMessage(
-                                content=str(output),
-                                tool_call_id=call_id,
-                                name=name,
-                                status="success" if status == "ok" else "error",
+                    loop = LangGraphToolLoop(
+                        model=model,
+                        tool_map=tool_map,
+                        event_bus=bus,
+                        max_steps=self.config.max_steps,
+                        compact=context.compact,
+                        estimate_tokens=ContextManager.estimate_tokens,
+                        stage="agent",
+                    )
+                    loop_result = loop.run(messages)
+                    messages = loop_result.messages
+                    final_answer = loop_result.final_answer
+                    errors.extend(loop_result.errors)
+                else:
+                    seen_calls: dict[str, int] = {}
+    
+                    for step in range(1, self.config.max_steps + 1):
+                        messages, removed = context.compact(messages)
+                        if removed:
+                            bus.emit(
+                                "context_compacted",
+                                "agent",
+                                f"上下文压缩：省略 {removed} 条旧消息",
+                                removed=removed,
+                                estimated_tokens=ContextManager.estimate_tokens(messages),
                             )
-                        )
-                        bus.emit(
-                            "tool_finished",
-                            "agent",
-                            str(output),
-                            tool=name,
-                            status=status,
-                            elapsed_ms=round(elapsed_ms, 2),
-                            call_id=call_id,
-                        )
-                    if final_answer.startswith("停止："):
-                        break
-
-                if not final_answer:
-                    final_answer = "达到最大步骤数，尚未得到最终回答。"
+    
+                        bus.emit("model_request", "agent", f"第 {step} 次模型采样", step=step)
+                        try:
+                            response: AIMessage = model.invoke(messages)
+                        except Exception as exc:
+                            errors.append(f"model: {exc}")
+                            bus.emit("error", "agent", f"模型调用失败：{exc}")
+                            break
+    
+                        messages.append(response)
+                        text = message_text(response)
+                        if text:
+                            bus.emit("agent_message", "agent", text)
+                        usage = getattr(response, "usage_metadata", None) or {}
+                        if usage:
+                            bus.emit("token_usage", "agent", "token usage", **usage)
+    
+                        tool_calls = list(getattr(response, "tool_calls", None) or [])
+                        if not tool_calls:
+                            final_answer = text or "模型没有返回最终文本。"
+                            bus.emit("turn_completed", "agent", "模型完成本轮，无更多工具调用", step=step)
+                            break
+    
+                        for call in tool_calls:
+                            name = call.get("name") or "unknown"
+                            args = call.get("args") or {}
+                            call_id = call.get("id") or f"call-{uuid.uuid4().hex[:8]}"
+                            signature = name + ":" + json.dumps(args, ensure_ascii=False, sort_keys=True)
+                            seen_calls[signature] = seen_calls.get(signature, 0) + 1
+                            if seen_calls[signature] > 2:
+                                errors.append(f"repeated_tool_call:{name}")
+                                bus.emit("error", "agent", f"检测到重复工具调用：{name}")
+                                final_answer = "停止：模型重复调用同一个工具，需要人工调整提示词或工具结果。"
+                                break
+    
+                            bus.emit("tool_started", "agent", "", tool=name, args=args, call_id=call_id)
+                            tool_started = time.perf_counter()
+                            try:
+                                target = tool_map.get(name)
+                                if target is None:
+                                    output = f"ERROR: 未知工具 {name}"
+                                    status = "error"
+                                else:
+                                    output = target.invoke(args)
+                                    status = "ok"
+                            except Exception as exc:
+                                output = f"ERROR: {type(exc).__name__}: {exc}"
+                                status = "error"
+                                errors.append(f"{name}: {exc}")
+                            elapsed_ms = (time.perf_counter() - tool_started) * 1000
+                            messages.append(
+                                ToolMessage(
+                                    content=str(output),
+                                    tool_call_id=call_id,
+                                    name=name,
+                                    status="success" if status == "ok" else "error",
+                                )
+                            )
+                            bus.emit(
+                                "tool_finished",
+                                "agent",
+                                str(output),
+                                tool=name,
+                                status=status,
+                                elapsed_ms=round(elapsed_ms, 2),
+                                call_id=call_id,
+                            )
+                        if final_answer.startswith("停止："):
+                            break
+    
+                    if not final_answer:
+                        final_answer = "达到最大步骤数，尚未得到最终回答。"
 
             with bus.stage("verify", "检查测试/lint 结果"):
                 if self.config.verify_command:

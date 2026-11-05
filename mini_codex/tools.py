@@ -18,11 +18,13 @@ import re
 import shlex
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import tool
+
+from agent_runtime.approval import ApprovalManager
 
 from .events import EventBus
 from .state import ChangeTracker, CommandRecord, PlanItem, PlanState
@@ -36,6 +38,7 @@ class ToolContext:
     commands: list[CommandRecord]
     event_bus: EventBus
     command_timeout: int = 60
+    approval: ApprovalManager = field(default_factory=ApprovalManager)
 
 
 def _safe_path(ctx: ToolContext, relative: str) -> Path:
@@ -66,6 +69,21 @@ def _sensitive_path(path: Path) -> bool:
 
 def _truncate(text: str, limit: int = 8000) -> str:
     return text if len(text) <= limit else text[:limit] + f"\n...[truncated {len(text) - limit} chars]"
+
+
+def _approval_gate(ctx: ToolContext, name: str, args: dict[str, Any], *, destructive: bool = False) -> str | None:
+    decision = ctx.approval.decide(name, args, destructive=destructive)
+    ctx.event_bus.emit(
+        "approval_decision",
+        "tools",
+        decision.reason,
+        tool=name,
+        behavior=decision.behavior,
+        args=args,
+    )
+    if decision.allowed:
+        return None
+    return f"ERROR: 审批拒绝：{decision.reason}"
 
 
 def build_tools(ctx: ToolContext) -> list[Any]:
@@ -153,6 +171,9 @@ def build_tools(ctx: ToolContext) -> list[Any]:
         target = _safe_path(ctx, path)
         if _sensitive_path(target):
             return f"ERROR: 安全策略禁止修改敏感文件：{path}"
+        denied = _approval_gate(ctx, "replace_in_file", {"path": path})
+        if denied:
+            return denied
         if not target.is_file():
             return f"ERROR: 文件不存在：{path}"
         before = target.read_text(encoding="utf-8", errors="replace")
@@ -186,6 +207,9 @@ def build_tools(ctx: ToolContext) -> list[Any]:
             return f"ERROR: 命令解析失败：{exc}"
         if not argv:
             return "ERROR: 命令为空。"
+        denied = _approval_gate(ctx, "run_command", {"command": command}, destructive=True)
+        if denied:
+            return denied
 
         allowed = {
             "python", "python3", "pytest", "uv", "git", "ruff", "mypy",
@@ -217,6 +241,27 @@ def build_tools(ctx: ToolContext) -> list[Any]:
         output = _truncate(output.strip(), 8000)
         ctx.commands.append(CommandRecord(command=command, returncode=result.returncode, output=output))
         return f"exit_code={result.returncode}\n{output or '(no output)'}"
+
+    @tool("exec_command", description="Codex 风格的 exec_command 别名：运行一条受限开发命令。")
+    def exec_command(command: str, timeout_sec: int = 60) -> str:
+        return run_command.invoke({"command": command, "timeout_sec": timeout_sec})
+
+    @tool("apply_patch", description="Codex 风格的简化 apply_patch：用 path + old/new 做精确替换。")
+    def apply_patch(path: str, old: str, new: str) -> str:
+        return replace_in_file.invoke({"path": path, "old": old, "new": new, "count": 1})
+
+    @tool("request_permissions", description="请求当前审批策略允许一个敏感操作；用于演示审批边界。")
+    def request_permissions(tool_name: str, reason: str = "") -> str:
+        decision = ctx.approval.decide(tool_name, {"reason": reason}, destructive=True)
+        ctx.event_bus.emit(
+            "approval_decision",
+            "tools",
+            decision.reason,
+            tool=tool_name,
+            behavior=decision.behavior,
+            requested=True,
+        )
+        return f"{'ALLOW' if decision.allowed else 'DENY'}: {decision.reason}"
 
     @tool("git_status", description="查看 workspace 的 git 状态。")
     def git_status() -> str:
@@ -256,4 +301,4 @@ def build_tools(ctx: ToolContext) -> list[Any]:
         ctx.event_bus.emit("plan_updated", "agent", explanation, items=[item.model_dump() for item in plan_items])
         return "Plan updated\n" + ctx.plan.to_text()
 
-    return [list_files, read_file, search_text, write_file, replace_in_file, run_command, git_status, git_diff, update_plan]
+    return [list_files, read_file, search_text, write_file, replace_in_file, run_command, exec_command, apply_patch, request_permissions, git_status, git_diff, update_plan]
