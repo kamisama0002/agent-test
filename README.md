@@ -203,7 +203,15 @@ uv run python -m hermes_harness `
 - [Support Project：五框架对照](docs/system-maps/support-project.html)
 - [图的说明与实时事件映射](docs/system-maps/README.md)
 
+静态图之外，运行案例后可以启动实时逐步高亮页面：
 
+```powershell
+uv run python docs/system-maps/live_viewer.py --system hermes_harness `
+  --workspace $env:TEMP/hermes_harness_demo --open
+```
+
+
+![实时逐步可视化](docs/system-maps/live-viewer-preview.png)
 ## Jupyter Notebooks
 
 在 IDE 中打开 Notebook，并选择能够读取项目 `.venv` 的 Python 内核。

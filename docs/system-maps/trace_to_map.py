@@ -17,6 +17,25 @@ from pathlib import Path
 from typing import Any
 
 
+
+EVENT_TO_NODE: dict[str, dict[str, str]] = {
+    "mini_codex": {
+        "tool_started": "tools", "tool_finished": "tools", "plan_created": "plan",
+        "verification_completed": "verify", "run_completed": "final",
+    },
+    "claude_harness": {
+        "tool_started": "tools", "tool_finished": "tools", "permission_decision": "permissions",
+        "hook_pre_tool": "hooks", "hook_post_tool": "hooks",
+        "verification_completed": "verify", "query_completed": "finalize",
+    },
+    "hermes_harness": {
+        "context_prepared": "prepare", "memory_changed": "memory",
+        "skill_viewed": "skills", "skill_changed": "skills",
+        "review_completed": "review", "turn_completed": "finalize",
+        "verification_completed": "verify",
+    },
+}
+
 STAGE_TO_NODE: dict[str, dict[str, str]] = {
     "mini_codex": {
         "bootstrap": "boot",
@@ -51,10 +70,12 @@ def map_event(system: str, event: dict[str, Any]) -> dict[str, Any]:
     mapping = STAGE_TO_NODE.get(system, {})
     stage = str(event.get("stage") or "")
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    event_type = str(event.get("type") or "")
+    node = EVENT_TO_NODE.get(system, {}).get(event_type, mapping.get(stage, "unknown"))
     return {
         "system": system,
         "stage": stage,
-        "node": mapping.get(stage, "unknown"),
+        "node": node,
         "event": event.get("type", ""),
         "message": event.get("message", ""),
         "tool": data.get("tool"),

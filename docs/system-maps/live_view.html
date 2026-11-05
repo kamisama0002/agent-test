@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Live Trace</title>
+<style>
+:root{color-scheme:dark;--bg:#0a0f17;--panel:#111a26;--line:#243346;--muted:#8da1b8;--cyan:#22d3ee;--green:#34d399;--text:#e6edf5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% 0%,#173049 0%,var(--bg) 42%);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI","Microsoft YaHei",sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px 10px}h1{margin:0;font-size:18px}.sub{color:var(--muted);font-size:12px;margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.chip{border:1px solid var(--line);background:rgba(17,26,38,.85);border-radius:999px;padding:5px 10px;color:var(--muted);font-size:12px}.chip strong{color:var(--text)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;padding:10px 18px 18px;height:calc(100vh - 72px);min-height:620px}
+.card{border:1px solid var(--line);background:rgba(17,26,38,.78);border-radius:14px;box-shadow:0 14px 50px rgba(0,0,0,.22);overflow:hidden}.diagram-wrap{position:relative;min-height:600px}
+iframe{border:0;width:100%;height:100%;min-height:600px;display:block;background:#fff}.hud{position:absolute;left:14px;top:14px;display:flex;gap:8px;pointer-events:none}.pill{pointer-events:auto;border:1px solid rgba(34,211,238,.35);background:rgba(8,15,24,.82);color:var(--cyan);border-radius:999px;padding:6px 10px;font-size:12px;backdrop-filter:blur(8px)}
+aside{display:flex;flex-direction:column;min-height:0}.controls{padding:14px;border-bottom:1px solid var(--line)}.row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+button,select{border:1px solid var(--line);background:#152235;color:var(--text);border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer}button:hover,select:hover{border-color:var(--cyan)}button.primary{background:var(--cyan);color:#061019;border-color:var(--cyan);font-weight:700}
+.status{color:var(--muted);font-size:12px;margin-top:6px}.progress{width:100%;height:5px;background:#0b1521;border-radius:999px;overflow:hidden;margin-top:10px}.progress>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .2s ease}
+.log{padding:10px 12px 14px;overflow:auto;min-height:0}.log h2{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin:4px 4px 8px}
+.event{border-left:2px solid var(--line);margin:0 0 8px;padding:6px 9px;background:rgba(8,15,24,.55);border-radius:0 8px 8px 0}.event.active{border-color:var(--cyan);background:rgba(34,211,238,.08)}.event .meta{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11px}.event .kind{color:var(--cyan);font-weight:700}.event .node{color:var(--green)}.event .msg{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{color:var(--muted);padding:18px 8px}.current{padding:12px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.current strong{color:var(--text)}
+@media(max-width:980px){main{grid-template-columns:1fr;height:auto}aside{min-height:420px}.diagram-wrap{min-height:680px}}
+</style>
+</head>
+<body>
+<header><div><h1>Harness Live Trace</h1><div class="sub">Archify 源码图 + events.jsonl 逐步高亮</div></div><div class="chips"><div class="chip">系统 <strong id="system-label">-</strong></div><div class="chip">运行 <strong id="run-label">-</strong></div><div class="chip">事件 <strong id="event-count">0</strong></div></div></header>
+<main><section class="card diagram-wrap"><div class="hud"><span class="pill" id="active-pill">等待事件…</span></div><iframe id="diagram" src="/diagram" title="源码流程图"></iframe></section><aside class="card"><div class="controls"><div class="row"><button class="primary" id="toggle">暂停</button><button id="replay">从头回放</button></div><div class="row"><label for="speed">速度</label><select id="speed"><option value="1100">慢</option><option value="650" selected>正常</option><option value="280">快</option></select><label><input id="follow" type="checkbox" checked> 自动跟随</label></div><div class="progress"><i id="progress"></i></div><div class="status" id="status">连接中…</div></div><div class="log"><h2>运行事件</h2><div id="events"><div class="empty">等待 events.jsonl…</div></div></div><div class="current">当前节点：<strong id="current-node">-</strong><br>当前工具：<strong id="current-tool">-</strong></div></aside></main>
+<script>
+const iframe=document.getElementById('diagram'),systemLabel=document.getElementById('system-label'),runLabel=document.getElementById('run-label'),eventCount=document.getElementById('event-count'),activePill=document.getElementById('active-pill'),eventsBox=document.getElementById('events'),status=document.getElementById('status'),progress=document.getElementById('progress'),currentNode=document.getElementById('current-node'),currentTool=document.getElementById('current-tool'),toggle=document.getElementById('toggle'),replay=document.getElementById('replay'),speed=document.getElementById('speed'),follow=document.getElementById('follow');
+let allEvents=[],cursor=0,playing=true,timer=null,lastCount=0,currentRunDir='';
+function injectStyles(){const d=iframe.contentDocument;if(!d||!d.head||d.getElementById('live-trace-style'))return;const s=d.createElement('style');s.id='live-trace-style';s.textContent=`[data-node-id].live-node-active>rect:not(.c-mask){stroke:#22d3ee!important;stroke-width:4!important;filter:drop-shadow(0 0 10px rgba(34,211,238,.95))}[data-node-id].live-node-done>rect:not(.c-mask){stroke:#34d399!important;stroke-width:2.5!important}[data-node-id].live-node-active{opacity:1!important}`;d.head.appendChild(s)}
+function markNode(nodeId,doneBefore){const d=iframe.contentDocument;if(!d)return;injectStyles();d.querySelectorAll('[data-node-id]').forEach(n=>n.classList.remove('live-node-active'));if(doneBefore){const p=d.querySelector(`[data-node-id="${CSS.escape(doneBefore)}"]`);if(p)p.classList.add('live-node-done')}if(!nodeId)return;const a=d.querySelector(`[data-node-id="${CSS.escape(nodeId)}"]`);if(a){a.classList.add('live-node-active');try{a.scrollIntoView({behavior:'smooth',block:'center',inline:'center'})}catch(_){}}}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function addLog(row){const item=document.createElement('div');item.className='event active';const prev=eventsBox.querySelector('.event.active');if(prev)prev.classList.remove('active');item.innerHTML=`<div class="meta"><span class="kind">${esc(row.event||'event')}</span><span>${esc(row.stage||'')}</span><span class="node">${esc(row.node||'unknown')}</span></div><div class="msg">${esc(row.message||'')}${row.tool?' · tool='+esc(row.tool):''}</div>`;eventsBox.prepend(item);while(eventsBox.querySelectorAll('.event').length>60)eventsBox.lastElementChild.remove()}
+function render(){eventCount.textContent=String(allEvents.length);const p=allEvents.length?Math.min(100,Math.round(cursor/allEvents.length*100)):0;progress.style.width=p+'%';status.textContent=`已显示 ${cursor} / ${allEvents.length} 个事件 · ${playing?'播放中':'已暂停'}`;toggle.textContent=playing?'暂停':'继续'}
+function step(){if(!playing||cursor>=allEvents.length){render();return}const row=allEvents[cursor],prev=cursor>0?allEvents[cursor-1].node:'';markNode(row.node,prev);addLog(row);activePill.textContent=`${row.node} · ${row.event}`;currentNode.textContent=row.node||'-';currentTool.textContent=row.tool||'-';cursor++;if(cursor>=allEvents.length&&!follow.checked)playing=false;render()}
+function schedule(){if(timer)clearInterval(timer);timer=setInterval(step,Number(speed.value))}
+async function refresh(){try{const r=await fetch('/api/trace',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const data=await r.json();allEvents=data.events||[];systemLabel.textContent=data.system||'-';currentRunDir=data.run_dir||'';runLabel.textContent=currentRunDir?currentRunDir.split(/[\\/]/).pop():'-';if(allEvents.length<lastCount){cursor=0;eventsBox.innerHTML=''}lastCount=allEvents.length;render()}catch(e){status.textContent='连接失败：'+e.message}}
+toggle.addEventListener('click',()=>{playing=!playing;render()});
+replay.addEventListener('click',()=>{cursor=0;playing=true;eventsBox.innerHTML='';currentNode.textContent='-';currentTool.textContent='-';activePill.textContent='从头回放…';if(iframe.contentDocument)iframe.contentDocument.querySelectorAll('[data-node-id]').forEach(n=>n.classList.remove('live-node-active','live-node-done'));render()});
+speed.addEventListener('change',schedule);
+iframe.addEventListener('load',()=>{injectStyles();markNode(cursor>0?allEvents[cursor-1]?.node:'')});
+schedule();refresh();setInterval(refresh,600);
+</script>
+</body>
+</html>

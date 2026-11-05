@@ -51,6 +51,37 @@ python docs/system-maps/trace_to_map.py --system hermes_harness `
 
 该脚本输出 `stage → node`、事件类型和工具名；它不修改 Harness，也不读取 `.env`。
 
+## 实时逐步播放
+
+`live_viewer.py` 会启动一个本地 HTTP 服务，把 Archify 图嵌入页面，并轮询当前 run 的 `events.jsonl`：
+
+- 高亮当前阶段对应节点；
+- 已完成节点保留绿色描边；
+- 右侧显示事件流、当前节点、当前工具和进度；
+- 支持暂停、继续、从头回放和播放速度；
+- 运行中的会话会持续读取新事件。
+
+先运行案例，再查看最新一次 Hermes 运行：
+
+```powershell
+uv run python docs/system-maps/live_viewer.py `
+  --system hermes_harness `
+  --workspace $env:TEMP/hermes_harness_demo `
+  --open
+```
+
+也可以在运行前指定具体 run 目录并保持页面打开：
+
+```powershell
+uv run python docs/system-maps/live_viewer.py `
+  --system hermes_harness `
+  --run-dir "$env:TEMP/hermes_harness_demo/.hermes/runs/<timestamp>"
+```
+
+服务只读取该 run 目录的 `events.jsonl` 和本目录里的静态 HTML，不读取 `.env`。
+
+![实时逐步可视化](live-viewer-preview.png)
+
 ## 重新生成
 
 候选 JSON 在 `docs/system-maps/sources/`，输出 HTML 也在本目录。修改源码后：
