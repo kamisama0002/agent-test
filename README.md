@@ -10,6 +10,8 @@
 
 所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 `deepseek-v4.1-flash`。
 
+> 第一次学习？先看 [从零开始：Agent 学习与项目使用指南](docs/beginner-guide.md)，按环境准备、基础案例、三套 Harness、实时图的顺序走。
+
 ## 快速开始
 
 ```powershell
@@ -308,6 +310,7 @@ BAILIAN_EMBEDDING_MODEL=
 ├── data/
 │   ├── langchain_guide.md          # LangChain RAG 示例数据
 │   └── support_policy.md           # 售后小项目政策库
+├── docs/beginner-guide.md          # 小白学习路线与运行指南
 ├── docs/framework-selection.md     # 五框架选型指南
 ├── docs/framework-feature-map.md   # 特色能力与案例位置索引
 ├── docs/mini-codex-architecture.md # Codex Harness 对照与实现说明
