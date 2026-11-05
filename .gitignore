@@ -20,3 +20,7 @@ build/
 # Archify 候选与浏览器检查
 .archify/
 
+
+# Archify 重新验证证据目录
+docs/system-maps/*.review-*/
+
