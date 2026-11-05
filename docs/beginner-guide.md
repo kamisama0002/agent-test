@@ -123,7 +123,7 @@ uv run pytest -q
 预期：
 
 - `main.py --check` 能识别配置；
-- 测试最后显示 `35 passed` 或类似结果；
+- 测试最后显示 `41 passed` 或类似结果；
 - 出现 pydantic / LangSmith deprecation warning 不一定代表失败，先看 pytest 最后一行。
 
 如果你的环境没有网络，`uv sync` 和真实模型调用会失败，但离线 pytest 和部分工具测试仍应尽量通过。
@@ -1079,3 +1079,4 @@ uv run pytest -q
 ```
 
 当你能对着 `events.jsonl` 说出“现在在执行哪个节点、为什么进入这个分支”，你就不只是会调用 API，而是开始理解 Agent Harness 了。
+

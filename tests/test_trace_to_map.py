@@ -43,6 +43,6 @@ def test_hermes_review_event_maps_to_review_node() -> None:
 
 def test_new_runtime_events_map_to_extension_nodes() -> None:
     module = _load_trace_module()
-    assert module.map_event("hermes_harness", {"type": "plugin_tools_loaded"})["node"] == "plugins"
+    assert module.map_event("hermes_harness", {"type": "plugin_tools_loaded"})["node"] == "extensions"
     assert module.map_event("hermes_harness", {"type": "multi_agent_tools_loaded"})["node"] == "multi_agent"
     assert module.map_event("hermes_harness", {"type": "approval_decision"})["node"] == "approval"

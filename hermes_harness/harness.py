@@ -215,7 +215,6 @@ class HermesHarness:
             metadata={"toolsets": list(self.config.toolsets), "run_id": run_id},
         )
         self.tool_ctx.event_bus = bus
-        self._refresh_runtime_tools(bus)
         final = ""
         turns = 0
         review_result: ReviewResult | None = None
@@ -229,6 +228,7 @@ class HermesHarness:
             workspace=str(self.config.workspace),
             hermes_home=str(self.config.hermes_home),
         )
+        self._refresh_runtime_tools(bus)
         bus.emit(
             "toolsets_resolved",
             "bootstrap",
