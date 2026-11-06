@@ -11,7 +11,7 @@
     "repository": {
       "url": "https://github.com/kamisama0002/agent-test.git",
       "provider": "github",
-      "revision": "03b4fffe87722c9bb565df9545a73d8332bbf1cc",
+      "revision": "4a2ffa5cde7e60a7c3b7253262235f8e0d75deac",
       "link_mode": "web"
     },
     "views": [
@@ -348,8 +348,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 620,
-          "end_line": 646,
+          "line": 612,
+          "end_line": 634,
           "label": "验证阶段"
         }
       ],
@@ -367,9 +367,9 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 605,
-          "end_line": 690,
-          "label": "turn/end 与 finalize"
+          "line": 636,
+          "end_line": 700,
+          "label": "finalize 与 turn 结果"
         }
       ],
       "tag": "产物",
@@ -388,12 +388,12 @@
           "path": "deepseek_harness/harness.py",
           "line": 151,
           "end_line": 214,
-          "label": "llm/retry 与失败尝试"
+          "label": "llm/retry 与 assistant/attempt"
         },
         {
           "path": "deepseek_harness/harness.py",
           "line": 605,
-          "end_line": 618,
+          "end_line": 620,
           "label": "turn/end error"
         }
       ],

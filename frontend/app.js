@@ -128,7 +128,7 @@ function switchSystem(system) {
     codex: 'Mini Codex：LangGraph 运行流',
     claude: 'Claude mini：queryLoop 运行流',
     hermes: 'Hermes mini：记忆与复盘运行流',
-    deepseek: 'DeepSeek Harness：推理、重试与 checkpoint',
+    deepseek: 'DeepSeek Harness：session / 工具 / 重试',
   };
   els.title.textContent = titles[system];
   els.iframe.src = '/diagram?system=' + encodeURIComponent(system) + '&theme=light&embed=1';

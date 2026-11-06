@@ -5,16 +5,16 @@
   "status": "pass",
   "type": "workflow",
   "quality": "showcase",
-  "startedAt": "2026-11-06T04:04:29.279Z",
+  "startedAt": "2026-11-06T04:36:17.719Z",
   "specification": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
-    "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
-    "bytes": 12553
+    "sha256": "e9bf75f7718b4a458f6aba1171cd4e597fb4aece25e5a4d271a26ec3e026ea11",
+    "bytes": 12904
   },
   "artifact": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-    "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
-    "bytes": 844520
+    "sha256": "fe8e82f1ea722b514855ca00123a76d563d623114a4b5f7700683489baca6180",
+    "bytes": 845357
   },
   "stages": {
     "validate": {
@@ -40,8 +40,8 @@
         "ok": true,
         "command": "validate",
         "specification": {
-          "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
-          "bytes": 12553
+          "sha256": "e9bf75f7718b4a458f6aba1171cd4e597fb4aece25e5a4d271a26ec3e026ea11",
+          "bytes": 12904
         },
         "validation": {
           "checksPassed": 9,
@@ -56,7 +56,7 @@
     "deliver": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 1673,
+      "durationMs": 1293,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -72,19 +72,19 @@
       ],
       "receipt": {
         "schemaVersion": 1,
-        "receiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a",
+        "receiptId": "721d23a9-cc52-4075-9ad2-00c6ac19b3d1",
         "ok": true,
         "command": "deliver",
         "type": "workflow",
         "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
         "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
         "specification": {
-          "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
-          "bytes": 12553
+          "sha256": "e9bf75f7718b4a458f6aba1171cd4e597fb4aece25e5a4d271a26ec3e026ea11",
+          "bytes": 12904
         },
         "artifact": {
-          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
-          "bytes": 844520
+          "sha256": "fe8e82f1ea722b514855ca00123a76d563d623114a4b5f7700683489baca6180",
+          "bytes": 845357
         },
         "validation": {
           "checksPassed": 9,
@@ -97,8 +97,8 @@
         "evidence": {
           "verified": true,
           "repository": "https://github.com/kamisama0002/agent-test",
-          "revision": "03b4fffe87722c9bb565df9545a73d8332bbf1cc",
-          "references": 21
+          "revision": "4a2ffa5cde7e60a7c3b7253262235f8e0d75deac",
+          "references": 22
         },
         "update": {
           "status": "unavailable",
@@ -116,7 +116,7 @@
     "check": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 422,
+      "durationMs": 280,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -128,8 +128,8 @@
         "ok": true,
         "file": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
         "artifact": {
-          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
-          "bytes": 844520
+          "sha256": "fe8e82f1ea722b514855ca00123a76d563d623114a4b5f7700683489baca6180",
+          "bytes": 845357
         },
         "checks": [
           {
@@ -246,13 +246,13 @@
           "issues": []
         },
         "provenance": "current",
-        "deliveryReceiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a"
+        "deliveryReceiptId": "721d23a9-cc52-4075-9ad2-00c6ac19b3d1"
       }
     },
     "browser-check": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 5720,
+      "durationMs": 2499,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -270,11 +270,11 @@
         "status": "pass",
         "visualReview": "not-requested",
         "provenance": "current",
-        "deliveryReceiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a",
+        "deliveryReceiptId": "721d23a9-cc52-4075-9ad2-00c6ac19b3d1",
         "artifact": {
           "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
-          "bytes": 844520
+          "sha256": "fe8e82f1ea722b514855ca00123a76d563d623114a4b5f7700683489baca6180",
+          "bytes": 845357
         },
         "state": {
           "detail": "read",
@@ -296,7 +296,7 @@
               "innerWidth": 1440,
               "innerHeight": 900,
               "scrollWidth": 1440,
-              "scrollHeight": 1132,
+              "scrollHeight": 1153,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -309,7 +309,7 @@
               "diagramWidth": 1346,
               "pageComposition": {
                 "bodyPaddingPx": 12,
-                "headerPx": 78,
+                "headerPx": 99,
                 "diagramChromePx": 78,
                 "svgPx": 963,
                 "cardsPx": 0,
@@ -412,7 +412,7 @@
               "innerWidth": 1600,
               "innerHeight": 1000,
               "scrollWidth": 1600,
-              "scrollHeight": 1312,
+              "scrollHeight": 1334,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -425,7 +425,7 @@
               "diagramWidth": 1506,
               "pageComposition": {
                 "bodyPaddingPx": 64,
-                "headerPx": 86,
+                "headerPx": 107,
                 "diagramChromePx": 84,
                 "svgPx": 1078,
                 "cardsPx": 0,
@@ -813,7 +813,7 @@
               "innerWidth": 1440,
               "innerHeight": 900,
               "scrollWidth": 1440,
-              "scrollHeight": 1132,
+              "scrollHeight": 1153,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -826,7 +826,7 @@
               "diagramWidth": 1346,
               "pageComposition": {
                 "bodyPaddingPx": 12,
-                "headerPx": 78,
+                "headerPx": 99,
                 "diagramChromePx": 78,
                 "svgPx": 963,
                 "cardsPx": 0,
@@ -929,7 +929,7 @@
               "innerWidth": 1600,
               "innerHeight": 1000,
               "scrollWidth": 1600,
-              "scrollHeight": 1312,
+              "scrollHeight": 1334,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -942,7 +942,7 @@
               "diagramWidth": 1506,
               "pageComposition": {
                 "bodyPaddingPx": 64,
-                "headerPx": 86,
+                "headerPx": 107,
                 "diagramChromePx": 84,
                 "svgPx": 1078,
                 "cardsPx": 0,
@@ -1282,7 +1282,7 @@
               "innerWidth": 1440,
               "innerHeight": 900,
               "scrollWidth": 1440,
-              "scrollHeight": 1132,
+              "scrollHeight": 1153,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -1295,7 +1295,7 @@
               "diagramWidth": 1346,
               "pageComposition": {
                 "bodyPaddingPx": 12,
-                "headerPx": 78,
+                "headerPx": 99,
                 "diagramChromePx": 78,
                 "svgPx": 963,
                 "cardsPx": 0,
@@ -1398,7 +1398,7 @@
               "innerWidth": 1600,
               "innerHeight": 1000,
               "scrollWidth": 1600,
-              "scrollHeight": 1312,
+              "scrollHeight": 1334,
               "overflowX": false,
               "overflowY": true,
               "verticalScrollAccepted": true,
@@ -1411,7 +1411,7 @@
               "diagramWidth": 1506,
               "pageComposition": {
                 "bodyPaddingPx": 64,
-                "headerPx": 86,
+                "headerPx": 107,
                 "diagramChromePx": 84,
                 "svgPx": 1078,
                 "cardsPx": 0,
@@ -1764,8 +1764,8 @@
     "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.browser-check.json"
   },
   "visualReview": "not-requested",
-  "finishedAt": "2026-11-06T04:04:37.870Z",
-  "durationMs": 8590,
+  "finishedAt": "2026-11-06T04:36:22.240Z",
+  "durationMs": 4521,
   "update": {
     "status": "current",
     "installedVersion": "3.2.0",

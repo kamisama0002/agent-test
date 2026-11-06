@@ -31,11 +31,17 @@ context_compacted
 verification_completed
 turn_completed / query_completed
 review_completed
-reasoning_content          # DeepSeek
-checkpoint_saved           # DeepSeek
-retry_scheduled / retry_succeeded
+turn/start, step/start, step/end, turn/end
+user/message, request/header, assistant/message, assistant/attempt
+tool/call, tool/result
+llm/retry, llm/retry-started
+session/flush
+compaction/start, compaction/prune, compaction/summary, compaction/end
+approval/policy, approval/asked, approval/decided
 fallback_applied / failure_summary / limit_reached
 ```
+
+DeepSeek 事件的源码依据见 [../source-provenance.md](../source-provenance.md)。
 
 例如查看 Hermes 一次运行的阶段：
 

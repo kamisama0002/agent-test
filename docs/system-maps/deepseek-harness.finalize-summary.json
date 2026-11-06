@@ -7,13 +7,13 @@
   "quality": "showcase",
   "specification": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
-    "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
-    "bytes": 12553
+    "sha256": "e9bf75f7718b4a458f6aba1171cd4e597fb4aece25e5a4d271a26ec3e026ea11",
+    "bytes": 12904
   },
   "artifact": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-    "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
-    "bytes": 844520
+    "sha256": "fe8e82f1ea722b514855ca00123a76d563d623114a4b5f7700683489baca6180",
+    "bytes": 845357
   },
   "gates": {
     "validate": "pass",
@@ -43,7 +43,7 @@
     "noticeText": null
   },
   "visualReview": "not-requested",
-  "durationMs": 8590,
+  "durationMs": 4521,
   "browserCheck": {
     "requested": true,
     "ran": true

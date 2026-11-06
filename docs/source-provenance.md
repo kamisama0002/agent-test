@@ -159,7 +159,17 @@
 | 长期学习 | 无 | session memory | memory/skills/review | session memory |
 | 失败降级 | 插件/MCP/模型/工具 | 权限/hook/压缩/模型 | review/记忆/技能/MCP | retry/approval/tool/compaction |
 
-## 6. 使用原则
+## 6. 教学扩展（不是上游事件）
+
+以下事件/机制是本教学项目为了可视化、故障演练和安全兜底新增的，不应误认为上游原生事件：
+
+- `run_started`、`workspace_ready`、`context_built`：本地 UI 的阶段入口；
+- `fault_injected`：显式故障演练，只在用户选择故障模式时触发；
+- `fallback_applied`、`failure_summary`、`limit_reached`：统一的可解释降级/终止事件；
+- `plugin_loaded`、`mcp_tools_loaded`、`multi_agent_tools_loaded`：本地共享 runtime 的可视线；
+- DeepSeek 的 `fault_mode`、`session/flush` 可视化镜像和 `events.jsonl` 镜像：教学层，上游实际实现分别对应持久化 flush、session event 和 persistence backend。
+
+## 7. 使用原则
 
 - 需要源码级行为时，先看上游 path 和 symbol，再看本项目对应实现，不要从 UI 文案反推。
 - 需要新增机制时，先确认它属于上游的哪个 seam；没有源码依据的机制必须标成教学扩展。
