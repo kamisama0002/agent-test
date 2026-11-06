@@ -11,7 +11,7 @@
     "repository": {
       "url": "https://github.com/kamisama0002/agent-test.git",
       "provider": "github",
-      "revision": "baba056b16a845459a411344d12e9eb0a2df7f2f",
+      "revision": "03b4fffe87722c9bb565df9545a73d8332bbf1cc",
       "link_mode": "web"
     },
     "views": [
@@ -170,8 +170,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 244,
-          "end_line": 258,
+          "line": 264,
+          "end_line": 277,
           "label": "context stage"
         },
         {
@@ -194,14 +194,14 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 176,
-          "end_line": 222,
+          "line": 196,
+          "end_line": 242,
           "label": "规划与降级"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 259,
-          "end_line": 263,
+          "line": 278,
+          "end_line": 282,
           "label": "plan stage"
         }
       ],
@@ -218,8 +218,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 264,
-          "end_line": 357,
+          "line": 283,
+          "end_line": 379,
           "label": "工具与扩展装配"
         }
       ],
@@ -236,14 +236,14 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 93,
-          "end_line": 142,
+          "line": 107,
+          "end_line": 158,
           "label": "有限重试 + 模型调用"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 359,
-          "end_line": 390,
+          "line": 380,
+          "end_line": 411,
           "label": "reasoning / answer / usage"
         }
       ],
@@ -261,8 +261,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 391,
-          "end_line": 477,
+          "line": 412,
+          "end_line": 489,
           "label": "工具循环与错误回填"
         }
       ],
@@ -304,8 +304,8 @@
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 144,
-          "end_line": 174,
+          "line": 161,
+          "end_line": 191,
           "label": "checkpoint 写入"
         }
       ],
@@ -342,8 +342,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 479,
-          "end_line": 510,
+          "line": 505,
+          "end_line": 536,
           "label": "验证阶段"
         }
       ],
@@ -361,8 +361,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 512,
-          "end_line": 552,
+          "line": 538,
+          "end_line": 574,
           "label": "finalize"
         }
       ],
@@ -380,14 +380,14 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 93,
-          "end_line": 142,
-          "label": "模型重试"
+          "line": 107,
+          "end_line": 158,
+          "label": "模型重试与终止"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 558,
-          "end_line": 575,
+          "line": 578,
+          "end_line": 598,
           "label": "外层异常"
         }
       ],

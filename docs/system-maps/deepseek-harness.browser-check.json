@@ -6,11 +6,11 @@
   "status": "pass",
   "visualReview": "not-requested",
   "provenance": "current",
-  "deliveryReceiptId": "e8bb4d59-a9e0-4faf-803f-391de8ff0a46",
+  "deliveryReceiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a",
   "artifact": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-    "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
-    "bytes": 844507
+    "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
+    "bytes": 844520
   },
   "state": {
     "detail": "read",

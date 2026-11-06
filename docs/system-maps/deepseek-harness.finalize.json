@@ -5,16 +5,16 @@
   "status": "pass",
   "type": "workflow",
   "quality": "showcase",
-  "startedAt": "2026-11-06T03:52:07.854Z",
+  "startedAt": "2026-11-06T04:04:29.279Z",
   "specification": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
-    "sha256": "9aae2353884f554237484066bf93d0290665d7f99ddc8927f7ed4a5e51fa25c2",
-    "bytes": 12542
+    "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
+    "bytes": 12553
   },
   "artifact": {
     "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-    "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
-    "bytes": 844507
+    "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
+    "bytes": 844520
   },
   "stages": {
     "validate": {
@@ -40,8 +40,8 @@
         "ok": true,
         "command": "validate",
         "specification": {
-          "sha256": "9aae2353884f554237484066bf93d0290665d7f99ddc8927f7ed4a5e51fa25c2",
-          "bytes": 12542
+          "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
+          "bytes": 12553
         },
         "validation": {
           "checksPassed": 9,
@@ -56,7 +56,7 @@
     "deliver": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 1805,
+      "durationMs": 1673,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -72,19 +72,19 @@
       ],
       "receipt": {
         "schemaVersion": 1,
-        "receiptId": "e8bb4d59-a9e0-4faf-803f-391de8ff0a46",
+        "receiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a",
         "ok": true,
         "command": "deliver",
         "type": "workflow",
         "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
         "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
         "specification": {
-          "sha256": "9aae2353884f554237484066bf93d0290665d7f99ddc8927f7ed4a5e51fa25c2",
-          "bytes": 12542
+          "sha256": "e1e1f10a45bb4fe9afa85d73f7fed7104923cc38368b6d28cc7a149ca0c08c44",
+          "bytes": 12553
         },
         "artifact": {
-          "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
-          "bytes": 844507
+          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
+          "bytes": 844520
         },
         "validation": {
           "checksPassed": 9,
@@ -97,7 +97,7 @@
         "evidence": {
           "verified": true,
           "repository": "https://github.com/kamisama0002/agent-test",
-          "revision": "baba056b16a845459a411344d12e9eb0a2df7f2f",
+          "revision": "03b4fffe87722c9bb565df9545a73d8332bbf1cc",
           "references": 21
         },
         "update": {
@@ -116,7 +116,7 @@
     "check": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 434,
+      "durationMs": 422,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -128,8 +128,8 @@
         "ok": true,
         "file": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
         "artifact": {
-          "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
-          "bytes": 844507
+          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
+          "bytes": 844520
         },
         "checks": [
           {
@@ -246,13 +246,13 @@
           "issues": []
         },
         "provenance": "current",
-        "deliveryReceiptId": "e8bb4d59-a9e0-4faf-803f-391de8ff0a46"
+        "deliveryReceiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a"
       }
     },
     "browser-check": {
       "status": "pass",
       "exitCode": 0,
-      "durationMs": 2987,
+      "durationMs": 5720,
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "D:\\.codex\\skills\\archify\\bin\\archify.mjs",
@@ -270,11 +270,11 @@
         "status": "pass",
         "visualReview": "not-requested",
         "provenance": "current",
-        "deliveryReceiptId": "e8bb4d59-a9e0-4faf-803f-391de8ff0a46",
+        "deliveryReceiptId": "3abd8e38-a6a3-4a06-8dde-a72a11856b4a",
         "artifact": {
           "path": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
-          "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
-          "bytes": 844507
+          "sha256": "963b08aad300569c2ee389170b18b70fe578f1f8e17eee3e9508d9890e5ebea9",
+          "bytes": 844520
         },
         "state": {
           "detail": "read",
@@ -1764,8 +1764,8 @@
     "browserCheckReceipt": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.browser-check.json"
   },
   "visualReview": "not-requested",
-  "finishedAt": "2026-11-06T03:52:13.846Z",
-  "durationMs": 5991,
+  "finishedAt": "2026-11-06T04:04:37.870Z",
+  "durationMs": 8590,
   "update": {
     "status": "current",
     "installedVersion": "3.2.0",
