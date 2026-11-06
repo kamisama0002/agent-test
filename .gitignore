@@ -24,3 +24,7 @@ build/
 # Archify 重新验证证据目录
 docs/system-maps/*.review-*/
 
+
+# Playwright CLI 快照
+.playwright-cli/
+

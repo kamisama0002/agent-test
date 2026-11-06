@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Harness Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div>
+        <h1>Mini Harness Studio</h1>
+        <p>和 Agent 对话，同时内视它怎么运行</p>
+      </div>
+    </div>
+    <nav id="systems" class="system-tabs" aria-label="选择 Harness">
+      <button data-system="codex" class="active">Mini Codex</button>
+      <button data-system="claude">Claude mini</button>
+      <button data-system="hermes">Hermes mini</button>
+    </nav>
+    <div class="workspace-chip" title="本次运行的工作区">
+      <span>workspace</span><strong id="workspace-label">...</strong>
+    </div>
+  </header>
+
+  <main class="studio">
+    <section class="panel chat-panel">
+      <div class="panel-head">
+        <div><span class="eyebrow">CONVERSATION</span><h2>问它一个问题</h2></div>
+        <span id="run-status" class="status-dot">idle</span>
+      </div>
+      <div id="messages" class="messages">
+        <div class="message agent">
+          <div class="avatar">M</div>
+          <div class="bubble">选择一个系统，然后输入任务。示例：<br>“读取 README.md，用一句话总结，不要修改文件。”</div>
+        </div>
+      </div>
+      <form id="chat-form" class="composer">
+        <textarea id="question" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行…"></textarea>
+        <div class="composer-row">
+          <span class="hint">运行时右侧会跟随 events.jsonl</span>
+          <button type="submit" id="send" class="primary">发送 ↗</button>
+        </div>
+      </form>
+      <div class="options">
+        <label><input id="opt-plugins" type="checkbox"> 插件</label>
+        <label><input id="opt-mcp" type="checkbox"> MCP</label>
+        <label><input id="opt-multi" type="checkbox"> 多 Agent</label>
+        <label>审批
+          <select id="opt-approval"><option value="auto">auto</option><option value="ask">ask</option><option value="deny">deny</option></select>
+        </label>
+        <label class="claude-only">权限
+          <select id="opt-permission"><option value="acceptEdits" selected>acceptEdits</option><option value="plan">plan</option><option value="default">default</option><option value="bypassPermissions">bypass</option></select>
+        </label>
+        <label class="codex-only">循环
+          <select id="opt-engine"><option value="langgraph" selected>LangGraph</option><option value="loop">loop</option></select>
+        </label>
+        <button type="button" id="reset" class="ghost">新对话</button>
+      </div>
+    </section>
+
+    <section class="panel diagram-panel">
+      <div class="panel-head diagram-head">
+        <div><span class="eyebrow">LIVE SOURCE MAP</span><h2 id="diagram-title">Mini Codex：运行流</h2></div>
+'        <div class="diagram-actions">
+          <div class="step-controls">
+            <button type="button" id="prev-step" title="上一步">←</button>
+            <button type="button" id="play-toggle" class="primary" title="播放/暂停">▶</button>
+            <button type="button" id="next-step" title="下一步">→</button>
+            <span id="step-indicator">0 / 0</span>
+          </div>
+          <div class="legend-mini"><i class="dot active"></i>当前 <i class="dot done"></i>已完成</div>
+        </div>'
+      </div>
+      <div class="diagram-wrap">
+        <div id="active-pill" class="active-pill">等待运行…</div>
+        <iframe id="diagram" src="/diagram?system=codex" title="Archify 源码流程图"></iframe>
+      </div>
+    </section>
+
+    <aside class="panel inspector-panel">
+      <div class="panel-head">
+        <div><span class="eyebrow">RUNTIME X-RAY</span><h2>运行内视</h2></div>
+        <span id="event-count" class="count">0 events</span>
+      </div>
+      <div id="node-view" class="node-view">
+        <div class="empty">点击中间图里的节点<br>查看源码位置和职责。</div>
+      </div>
+      <div class="events-head"><span>事件流</span><span id="run-id">no run</span></div>
+      <div id="events" class="events">
+        <div class="empty">还没有事件。发送一个问题开始。</div>
+      </div>
+    </aside>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
+

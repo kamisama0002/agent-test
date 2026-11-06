@@ -56,6 +56,9 @@ uv run python main_mini.py --system hermes
 # 只跑一次、关闭实时 Viewer
 uv run python main_mini.py --system hermes --task "总结当前项目" --no-viewer
 
+# Web 前端：对话 + 逐步内视流程图
+uv run python frontend/server.py --open
+
 # 离线测试
 uv run pytest
 ```
@@ -227,6 +230,19 @@ uv run python docs/system-maps/live_viewer.py --system hermes_harness `
 - [插件、审批、MCP、多 Agent 与统一入口](docs/runtime-extensions.md)
 - `main_mini.py`：三套 mini 的交互式统一入口，自动启动实时 Viewer
 
+## Mini Harness Studio 前端
+
+`frontend/server.py` 提供本地 Web 工作台：左侧对话、中间 Archify 图、右侧事件参数和节点源码。
+
+- 支持 Codex / Claude / Hermes 切换；
+- 每次提问后可以「上一步 / 下一步 / 播放」逐事件查看；
+- 工具参数、工具输出、审批事件和源码片段都会显示；
+- 启动时自动复制三套 demo 到临时 workspace。
+
+![Mini Harness Studio](frontend/preview.png)
+
+详细说明：[frontend/README.md](frontend/README.md)
+
 ## Jupyter Notebooks
 
 在 IDE 中打开 Notebook，并选择能够读取项目 `.venv` 的 Python 内核。
@@ -273,6 +289,7 @@ BAILIAN_EMBEDDING_MODEL=
 .
 ├── main.py                         # LangChain 15 案例入口
 ├── main_mini.py                    # 三套 mini 的统一交互入口
+├── frontend/                     # Web 前端：对话 + 源码图 + 事件内视
 ├── LangChain测试.ipynb
 ├── LangGraph测试.ipynb
 ├── CrewAI测试.ipynb
@@ -384,5 +401,6 @@ BAILIAN_EMBEDDING_MODEL=
 - SQL Agent 必须使用只读账号、白名单表、超时和行数限制。
 - 长期记忆的 namespace/key 必须由服务端根据登录身份生成。
 - 生产环境应把 InMemorySaver/InMemoryStore 换成持久化后端，并接入真实审计。
+
 
 

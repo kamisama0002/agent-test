@@ -85,6 +85,7 @@ def map_event(system: str, event: dict[str, Any]) -> dict[str, Any]:
         "event": event.get("type", ""),
         "message": event.get("message", ""),
         "tool": data.get("tool"),
+        "data": data,
         "timestamp": event.get("timestamp"),
     }
 
