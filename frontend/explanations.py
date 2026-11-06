@@ -211,6 +211,11 @@ EVENT_GUIDES: dict[str, dict[str, str]] = {
 
 
 EVENT_GUIDES.update({
+    "fault_injected": {
+        "title": "故障演练注入",
+        "why": "学习 Harness 不能只跑正常路径；主动注入可控故障，能验证重试、降级、断路器和错误回填是否真的生效。",
+        "next": "观察 fault_injected 之后的 error、retry_scheduled、fallback_applied 或 failure_summary。",
+    },
     "fallback_applied": {
         "title": "启用降级路径",
         "why": "某个可选组件或一次工具调用失败，但主任务仍有机会继续，因此不能把整个 Agent 直接终止。",
@@ -249,6 +254,7 @@ EVENT_GUIDES.update({
 })
 
 DESIGN_NOTES: dict[str, str] = {
+    "fault_injected": "故障注入把不可控的生产异常变成可重复的教学实验。它只在显式选择时启用，避免把演示故障误认为真实故障；事件中同时记录 component 和 mode，便于区分模型、规划、插件和工具四类恢复路径。",
     "stage_started": "用阶段边界包围一组动作，能让异常定位、耗时统计和 UI 回放共享同一套坐标系；这比只记录最终答案更容易解释 Agent 为什么走到某一步。",
     "stage_completed": "把开始和完成拆成两个事件，才能表示“进行中”“成功完成”“异常退出”三种状态；只记录完成会让崩溃路径不可见。",
     "run_started": "先创建 run_id 和事件文件，再执行任何有副作用的动作，保证即使中途崩溃，也能留下可恢复、可审计的证据。",
@@ -430,6 +436,23 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         input_text = f"工具：{data.get('tool', '?')}\n参数/输出：{_json_preview(data.get('args', data.get('output', '')))}"
         output_text = message or "Hook 已完成"
         next_text = "继续工具执行或回填工具结果。"
+    elif event_type == "fault_injected":
+        input_text = f"显式故障演练 mode={data.get('mode', '?')}"
+        output_text = f"component={data.get('component', '?')}；{message}"
+        next_text = "观察 Harness 是否重新路由、重试、降级或安全终止。"
+    elif event_type in {"fallback_applied", "failure_summary"}:
+        input_text = f"失败组件：{data.get('component', '?')}；错误：{data.get('error', '见事件正文')}"
+        output_text = (f"strategy={data.get('strategy', '?')}；{message}")
+        next_text = "继续当前可恢复路径，或记录终止原因并返回结果。"
+    elif event_type in {"retry_scheduled", "retry_succeeded"}:
+        input_text = (f"step={data.get('step', '?')}，attempt={data.get('attempt', '?')}，"
+                      f"max_attempts={data.get('max_attempts', '?')}")
+        output_text = message or "重试状态已更新"
+        next_text = "重试成功后继续主循环；耗尽后进入 failure_summary。"
+    elif event_type == "limit_reached":
+        input_text = f"component={data.get('component', '?')}；上限={data.get('max_steps', data.get('max_turns', '?'))}"
+        output_text = message or "运行达到硬上限"
+        next_text = "返回部分结果，并保留需要人工调整的提示。"
     elif event_type == "context_compacted":
         input_text = f"压缩方法：{data.get('method', data.get('removed', '?'))}"
         output_text = (f"before_tokens={data.get('before_tokens', '?')}，"

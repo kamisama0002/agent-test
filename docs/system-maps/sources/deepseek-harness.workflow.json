@@ -11,7 +11,7 @@
     "repository": {
       "url": "https://github.com/kamisama0002/agent-test.git",
       "provider": "github",
-      "revision": "9c41679f02380f4786da33581932b501da21098e",
+      "revision": "baba056b16a845459a411344d12e9eb0a2df7f2f",
       "link_mode": "web"
     },
     "views": [
@@ -26,20 +26,20 @@
           "setup",
           "model",
           "tools",
-          "checkpoint",
+          "events",
           "verify",
           "final"
         ],
-        "note": "模型推理 → 工具观察 → checkpoint → 再推理；无 tool_calls 后验证并收尾"
+        "note": "推理 → 工具 → checkpoint → 再推理；无 tool_calls 后验证并收尾"
       },
       {
         "id": "recovery",
-        "label": "错误与恢复分支",
+        "label": "错误与恢复",
         "focus": [
           "model",
           "tools",
+          "events",
           "error",
-          "checkpoint",
           "final"
         ],
         "note": "模型重试、工具错误回填、重复调用断路、最大步数保护"
@@ -128,7 +128,7 @@
       "lane": "entry",
       "col": 0,
       "type": "external",
-      "label": "用户任务",
+      "label": "DeepSeek 任务",
       "sublabel": "task + workspace",
       "width": 140,
       "sources": [
@@ -147,7 +147,7 @@
       "col": 1,
       "type": "backend",
       "label": "Bootstrap",
-      "sublabel": "validate + create run",
+      "sublabel": "validate + run",
       "width": 140,
       "sources": [
         {
@@ -164,8 +164,8 @@
       "lane": "entry",
       "col": 2,
       "type": "database",
-      "label": "DeepSeekContextManager",
-      "sublabel": "DEEPSEEK.md + session + env",
+      "label": "Context",
+      "sublabel": "DEEPSEEK.md + memory",
       "width": 140,
       "sources": [
         {
@@ -188,8 +188,8 @@
       "lane": "entry",
       "col": 3,
       "type": "backend",
-      "label": "Structured Plan",
-      "sublabel": "fallback to default plan",
+      "label": "Plan",
+      "sublabel": "3–6 steps + fallback",
       "width": 140,
       "sources": [
         {
@@ -212,8 +212,8 @@
       "lane": "loop",
       "col": 2,
       "type": "backend",
-      "label": "Tool + Extension Setup",
-      "sublabel": "approval · plugins · MCP · agents",
+      "label": "Tool Setup",
+      "sublabel": "plugins · MCP · agents",
       "width": 140,
       "sources": [
         {
@@ -230,8 +230,8 @@
       "lane": "loop",
       "col": 3,
       "type": "cloud",
-      "label": "DeepSeek Reasoner",
-      "sublabel": "reasoning_content + tool_calls",
+      "label": "DeepSeek Model",
+      "sublabel": "reasoning + tools",
       "width": 140,
       "sources": [
         {
@@ -255,8 +255,8 @@
       "lane": "loop",
       "col": 4,
       "type": "messagebus",
-      "label": "Controlled Tools",
-      "sublabel": "tool_calls → observation",
+      "label": "Tool Calls",
+      "sublabel": "observe → retry",
       "width": 140,
       "sources": [
         {
@@ -275,7 +275,7 @@
       "col": 1,
       "type": "backend",
       "label": "Tool Registry",
-      "sublabel": "read/write/search/command",
+      "sublabel": "file/search/shell",
       "width": 140,
       "sources": [
         {
@@ -293,14 +293,20 @@
       "col": 2,
       "type": "database",
       "label": "EventBus",
-      "sublabel": "events + timeline",
+      "sublabel": "events + checkpoint",
       "width": 140,
       "sources": [
         {
           "path": "mini_codex/events.py",
-          "line": 42,
-          "end_line": 113,
-          "label": "事件与时间线"
+          "line": 38,
+          "end_line": 92,
+          "label": "事件总线"
+        },
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 144,
+          "end_line": 174,
+          "label": "checkpoint 写入"
         }
       ],
       "tag": "可回放",
@@ -311,8 +317,8 @@
       "lane": "evidence",
       "col": 3,
       "type": "messagebus",
-      "label": "SubagentRuntime",
-      "sublabel": "spawn/send/wait",
+      "label": "Subagents",
+      "sublabel": "isolated context",
       "width": 140,
       "sources": [
         {
@@ -331,7 +337,7 @@
       "col": 4,
       "type": "security",
       "label": "Verify",
-      "sublabel": "exit code is evidence",
+      "sublabel": "exit code",
       "width": 140,
       "sources": [
         {
@@ -349,8 +355,8 @@
       "lane": "exit",
       "col": 5,
       "type": "backend",
-      "label": "Finalize + Session Memory",
-      "sublabel": "summary · diff · memory",
+      "label": "Finalize",
+      "sublabel": "summary + memory",
       "width": 140,
       "sources": [
         {
@@ -368,8 +374,8 @@
       "lane": "exit",
       "col": 3,
       "type": "security",
-      "label": "Retry / Fallback / Error",
-      "sublabel": "bounded recovery",
+      "label": "Recovery",
+      "sublabel": "retry / fallback",
       "width": 140,
       "sources": [
         {
@@ -393,9 +399,9 @@
       "lane": "extensions",
       "col": 2,
       "type": "messagebus",
-      "label": "Plugins · MCP · Multi-Agent",
-      "sublabel": "same approved tool boundary",
-      "width": 160,
+      "label": "Extensions",
+      "sublabel": "plugins · MCP",
+      "width": 140,
       "sources": [
         {
           "path": "agent_runtime/plugins.py",
@@ -406,7 +412,7 @@
         {
           "path": "claude_harness/mcp_server.py",
           "line": 1,
-          "end_line": 80,
+          "end_line": 65,
           "label": "MCP server"
         },
         {
@@ -416,24 +422,6 @@
           "label": "子 Agent 工具"
         }
       ]
-    },
-    {
-      "id": "checkpoint",
-      "lane": "evidence",
-      "col": 4,
-      "type": "database",
-      "label": "Checkpoint",
-      "sublabel": "checkpoint.json after model/tools",
-      "width": 150,
-      "sources": [
-        {
-          "path": "deepseek_harness/harness.py",
-          "line": 144,
-          "end_line": 174,
-          "label": "checkpoint 写入"
-        }
-      ],
-      "tag": "resume evidence"
     }
   ],
   "edges": [
@@ -530,46 +518,6 @@
       "to": "multi_agent",
       "variant": "dashed",
       "label": "可选装配",
-      "role": "branch"
-    },
-    {
-      "id": "model-error",
-      "from": "model",
-      "to": "error",
-      "variant": "security",
-      "label": "retry exhausted",
-      "role": "error"
-    },
-    {
-      "id": "tools-error",
-      "from": "tools",
-      "to": "error",
-      "variant": "dashed",
-      "label": "tool error → observation",
-      "role": "error"
-    },
-    {
-      "id": "model-checkpoint",
-      "from": "model",
-      "to": "checkpoint",
-      "variant": "dashed",
-      "label": "save state",
-      "role": "branch"
-    },
-    {
-      "id": "tools-checkpoint",
-      "from": "tools",
-      "to": "checkpoint",
-      "variant": "dashed",
-      "label": "save state",
-      "role": "branch"
-    },
-    {
-      "id": "checkpoint-final",
-      "from": "checkpoint",
-      "to": "final",
-      "variant": "dashed",
-      "label": "audit trail",
       "role": "branch"
     },
     {

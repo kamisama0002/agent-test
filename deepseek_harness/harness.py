@@ -67,6 +67,20 @@ class DeepSeekHarness:
         self.planner = planner
         self.checkpoints = 0
         self.retries = 0
+        self._fault_announced = False
+        self._tool_fault_injected = False
+
+    def _announce_fault(self, bus: EventBus, component: str, message: str) -> None:
+        if self._fault_announced:
+            return
+        self._fault_announced = True
+        bus.emit(
+            "fault_injected",
+            "agent" if component not in {"planner", "plugins"} else ("plan" if component == "planner" else "agent"),
+            message,
+            component=component,
+            mode=self.config.fault_mode,
+        )
 
     @staticmethod
     def _reasoning_text(response: Any) -> str:
@@ -101,6 +115,9 @@ class DeepSeekHarness:
         total_attempts = self.config.max_model_retries + 1
         for attempt in range(1, total_attempts + 1):
             try:
+                if self.config.fault_mode == "model_error" and step == 1:
+                    self._announce_fault(bus, "model", "已注入模型调用故障，用于观察重试与终止路径")
+                    raise RuntimeError("simulated model failure")
                 response = model.invoke(messages)
                 if attempt > 1:
                     bus.emit(
@@ -193,6 +210,9 @@ class DeepSeekHarness:
             ),
         ]
         try:
+            if self.config.fault_mode == "planner_error":
+                self._announce_fault(bus, "planner", "已注入规划故障，用于观察默认计划降级")
+                raise RuntimeError("simulated planner failure")
             planner = self.planner
             if planner is None:
                 planner = self.model.with_structured_output(Plan, method="function_calling")
@@ -251,7 +271,6 @@ class DeepSeekHarness:
                     "context_built",
                     "context",
                     "DeepSeek 上下文构建完成",
-                    message_count=0,
                     token_budget=self.config.token_budget,
                     context_snapshot=context.snapshot(task),
                 )
@@ -286,6 +305,9 @@ class DeepSeekHarness:
 
                 plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
                 try:
+                    if self.config.fault_mode == "plugin_error":
+                        self._announce_fault(bus, "plugins", "已注入插件装载故障，用于观察无插件降级")
+                        raise RuntimeError("simulated plugin failure")
                     plugin_tools = plugin_registry.load()
                 except Exception as exc:
                     plugin_tools = []
@@ -419,6 +441,10 @@ class DeepSeekHarness:
                         bus.emit("tool_started", "agent", "", tool=name, args=args, call_id=call_id)
                         tool_started = time.perf_counter()
                         try:
+                            if self.config.fault_mode == "tool_error" and not self._tool_fault_injected:
+                                self._tool_fault_injected = True
+                                self._announce_fault(bus, "tool", "已注入工具执行故障，用于观察 ToolMessage 回填")
+                                raise RuntimeError("simulated tool failure")
                             target = tool_map.get(name)
                             if target is None:
                                 output = f"ERROR: 未知工具 {name}"

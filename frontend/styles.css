@@ -139,6 +139,7 @@ button.ghost:hover { color: var(--accent); border-color: var(--accent-2); backgr
 .options input[type="checkbox"] { accent-color: var(--accent-2); }
 body[data-system="claude"] .codex-only { display: none; }
 body:not([data-system="claude"]) .claude-only { display: none; }
+body:not([data-system="deepseek"]) .deepseek-only { display: none; }
 .diagram-panel { display: flex; flex-direction: column; }
 .diagram-head { align-items: center; border-bottom: 1px solid var(--line); }
 .diagram-actions { display: flex; align-items: center; gap: 12px; }

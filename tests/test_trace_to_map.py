@@ -51,6 +51,7 @@ def test_new_runtime_events_map_to_extension_nodes() -> None:
 def test_deepseek_reasoning_checkpoint_and_recovery_nodes() -> None:
     module = _load_trace_module()
     assert module.map_event("deepseek_harness", {"type": "reasoning_content", "stage": "agent"})["node"] == "model"
-    assert module.map_event("deepseek_harness", {"type": "checkpoint_saved", "stage": "agent"})["node"] == "checkpoint"
+    assert module.map_event("deepseek_harness", {"type": "checkpoint_saved", "stage": "agent"})["node"] == "events"
     assert module.map_event("deepseek_harness", {"type": "retry_scheduled", "stage": "agent"})["node"] == "error"
+    assert module.map_event("deepseek_harness", {"type": "fault_injected", "stage": "agent"})["node"] == "error"
     assert module.map_event("deepseek_harness", {"type": "context_assembled", "stage": "agent"})["node"] == "context"

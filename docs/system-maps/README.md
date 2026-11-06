@@ -14,11 +14,12 @@
 | [Mini Codex](mini-codex.html) | `bootstrap → context → plan → agent(model/tools) → verify → finalize` | `.mini_codex/runs/*/events.jsonl` |
 | [Claude Harness](claude-harness.html) | LangGraph `prepare → plan → model → tools → compact → finalize`，含权限、hooks、MCP/子 Agent 的挂载点 | `.claude/runs/*/events.jsonl` |
 | [Hermes mini](hermes-harness.html) | `prepare → model → tools → finalize → background_review`，标明 MEMORY/USER/SKILL/FTS 的持久层 | `.hermes/runs/*/events.jsonl` |
+| [DeepSeek Harness](deepseek-harness.html) | `context → plan → model(reasoning) ↔ tools`，含 retry、checkpoint、session memory、插件/MCP/多 Agent | `.deepseek/runs/*/events.jsonl` |
 | [Support Project](support-project.html) | 同一售后问题在 5 个框架中的不同控制流；共享业务域单独标出 | `support_project.runner` 的返回值 |
 
 ## 如何把运行轨迹和节点对上
 
-三套 mini Harness 都会写 JSONL。常用事件名：
+四套 mini Harness 都会写 JSONL。常用事件名：
 
 ```text
 run_started
@@ -30,6 +31,10 @@ context_compacted
 verification_completed
 turn_completed / query_completed
 review_completed
+reasoning_content          # DeepSeek
+checkpoint_saved           # DeepSeek
+retry_scheduled / retry_succeeded
+fallback_applied / failure_summary / limit_reached
 ```
 
 例如查看 Hermes 一次运行的阶段：
@@ -99,5 +104,4 @@ node D:\.codex\skills\archify\bin\archify.mjs finalize workflow `
   --repo-root . --quality showcase --json
 ```
 
-四张图分别替换 source/output 路径即可。`--repo-root` 会把 source 引用固定到当前 Git 提交。
-
+五张 Harness 图分别替换 source/output 路径即可。`--repo-root` 会把 source 引用固定到当前 Git 提交。

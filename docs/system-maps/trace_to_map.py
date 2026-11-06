@@ -49,12 +49,12 @@ EVENT_TO_NODE: dict[str, dict[str, str]] = {
         "context_built": "context", "context_assembled": "context", "plan_created": "plan",
         "reasoning_content": "model", "agent_message": "model", "token_usage": "model",
         "tool_started": "tools", "tool_finished": "tools",
-        "checkpoint_saved": "checkpoint", "verification_completed": "verify",
+        "checkpoint_saved": "events", "verification_completed": "verify",
         "verification_skipped": "verify", "run_completed": "final",
         "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions",
         "mcp_tools_loaded": "extensions", "multi_agent_tools_loaded": "multi_agent",
         "fallback_applied": "error", "failure_summary": "error", "limit_reached": "error",
-        "retry_scheduled": "error", "retry_succeeded": "model",
+        "retry_scheduled": "error", "retry_succeeded": "model", "fault_injected": "error",
     },
 }
 

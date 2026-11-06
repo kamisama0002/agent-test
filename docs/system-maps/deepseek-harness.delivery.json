@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "e8bb4d59-a9e0-4faf-803f-391de8ff0a46",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\sources\\deepseek-harness.workflow.json",
+  "output": "D:\\workspace\\python\\agent测试\\docs\\system-maps\\deepseek-harness.html",
+  "specification": {
+    "sha256": "9aae2353884f554237484066bf93d0290665d7f99ddc8927f7ed4a5e51fa25c2",
+    "bytes": 12542
+  },
+  "artifact": {
+    "sha256": "5ce7327e6a4336581147209e0f67db54065f348ba195d7a1c2310a1b6d4f9c77",
+    "bytes": 844507
+  }
+}

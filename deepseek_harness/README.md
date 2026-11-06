@@ -8,7 +8,7 @@ DeepSeek Harness 是第四套 Mini Harness，复用共享工具基础设施，�
 - `DEEPSEEK.md` / `AGENTS.md` 分层上下文；
 - session memory 跨轮注入；
 - 插件、MCP、多 Agent、审批与验证；
-- 工具失败回填、模型失败终止、重复调用断路。
+- 工具失败回填、模型失败终止、重复调用断路；\n- Web 前端可选择故障演练：工具错误 / 规划失败 / 插件失败 / 模型失败。
 
 ## 运行
 

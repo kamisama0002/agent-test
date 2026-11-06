@@ -31,6 +31,7 @@ DIAGRAM_FILES = {
     "mini_codex": "mini-codex.html",
     "claude_harness": "claude-harness.html",
     "hermes_harness": "hermes-harness.html",
+    "deepseek_harness": "deepseek-harness.html",
 }
 
 
@@ -134,6 +135,7 @@ def find_latest_run_dir(workspace: Path, system: str) -> Path | None:
         "mini_codex": workspace / ".mini_codex" / "runs",
         "claude_harness": workspace / ".claude" / "runs",
         "hermes_harness": workspace / ".hermes" / "runs",
+        "deepseek_harness": workspace / ".deepseek" / "runs",
     }
     root = roots.get(system)
     if root is None or not root.is_dir():

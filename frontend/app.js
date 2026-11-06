@@ -31,6 +31,7 @@ const els = {
   approval: document.getElementById('opt-approval'),
   permission: document.getElementById('opt-permission'),
   engine: document.getElementById('opt-engine'),
+  fault: document.getElementById('opt-fault'),
   prev: document.getElementById('prev-step'),
   next: document.getElementById('next-step'),
   play: document.getElementById('play-toggle'),
@@ -83,6 +84,7 @@ function options() {
     approval_mode: els.approval.value,
     permission_mode: els.permission.value,
     engine: els.engine.value,
+    fault_mode: els.fault ? els.fault.value : 'none',
   };
 }
 async function sendQuestion(event) {
@@ -333,6 +335,7 @@ function addEvent(row) {
     renderPlayState();
     els.events.querySelectorAll('.event').forEach(node => node.classList.remove('active'));
     item.classList.add('active');
+    els.activePill.textContent = `${row.explanation?.title || row.node_label || row.node} · ${row.event}`;
     inspectNode(row.node, row).catch(console.error);
   });
   els.events.prepend(item);

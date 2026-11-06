@@ -120,6 +120,27 @@ def test_deepseek_tool_error_is_returned_to_model(tmp_path: Path) -> None:
     assert result.final_answer == "工具不可用，但已经安全结束。"
 
 
+def test_deepseek_fault_injection_uses_planner_fallback(tmp_path: Path) -> None:
+    config = DeepSeekHarnessConfig(
+        workspace=tmp_path,
+        max_steps=2,
+        console=False,
+        max_model_retries=0,
+        fault_mode="planner_error",
+    )
+    result = DeepSeekHarness(
+        config,
+        model=FakeModel([AIMessage(content="默认计划已接管。")]),
+        planner=FakePlanner(),
+    ).run("测试规划故障")
+    events = _events(result.run_dir)
+    assert any(item["type"] == "fault_injected" for item in events)
+    assert any(
+        item["type"] == "fallback_applied" and item["data"].get("strategy") == "use_default_plan"
+        for item in events
+    )
+
+
 def test_deepseek_model_retry_is_visible(tmp_path: Path) -> None:
     config = DeepSeekHarnessConfig(
         workspace=tmp_path,

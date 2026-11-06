@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Literal
 
 
+FaultMode = Literal["none", "tool_error", "planner_error", "plugin_error", "model_error"]
+
+
 @dataclass
 class DeepSeekHarnessConfig:
     workspace: Path
@@ -28,6 +31,7 @@ class DeepSeekHarnessConfig:
     mcp_server_script: Path | None = None
     plugin_dirs: tuple[Path, ...] = ()
     approval_mode: Literal["auto", "ask", "deny"] = "auto"
+    fault_mode: FaultMode = "none"
 
     def __post_init__(self) -> None:
         self.workspace = Path(self.workspace).resolve()
@@ -51,3 +55,5 @@ class DeepSeekHarnessConfig:
                 raise ValueError(f"插件目录不存在：{plugin_dir}")
         if self.approval_mode not in {"auto", "ask", "deny"}:
             raise ValueError("approval_mode 只能是 auto / ask / deny")
+        if self.fault_mode not in {"none", "tool_error", "planner_error", "plugin_error", "model_error"}:
+            raise ValueError("fault_mode 不受支持")

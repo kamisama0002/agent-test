@@ -227,7 +227,7 @@ bootstrap → context(DEEPSEEK.md/session) → plan → model(reasoning + tools)
 - 模型调用有限重试 + 退避，并产生 `retry_scheduled / retry_succeeded`；
 - 模型后、工具后都写 `checkpoint.json`；
 - 工具错误作为 `ToolMessage` 回填，插件/MCP 失败降级继续；
-- 重复工具调用、最大步数和模型最终失败都有明确断路器；
+- 重复工具调用、最大步数和模型最终失败都有明确断路器；\n- Web 前端内置故障演练（工具 / 规划 / 插件 / 模型），可以直接观察恢复路径；
 - 复用同一套插件、MCP、多 Agent 和审批边界。
 
 README：[deepseek_harness/README.md](deepseek_harness/README.md)

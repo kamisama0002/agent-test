@@ -4,6 +4,10 @@
 
 ![Mini Harness Studio](preview.png)
 
+DeepSeek 页还可以选择“故障演练”，直接观察错误注入之后的重试、降级和终止路径：
+
+![DeepSeek 故障演练](preview-fault.png)
+
 ## 启动
 
 ```powershell

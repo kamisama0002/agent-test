@@ -204,6 +204,7 @@ class ChatSession:
             approval = str(options.get("approval_mode", "auto"))
             engine = str(options.get("engine", "langgraph"))
             permission = str(options.get("permission_mode", "acceptEdits"))
+            fault_mode = str(options.get("fault_mode", "none"))
 
             if system == "codex":
                 from mini_codex.config import HarnessConfig
@@ -244,6 +245,7 @@ class ChatSession:
                     enable_mcp=enable_mcp,
                     plugin_dirs=plugins,
                     approval_mode=approval,
+                    fault_mode=fault_mode,
                 )).run(prompt)
             else:
                 from hermes_harness.config import HermesHarnessConfig
