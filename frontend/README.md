@@ -40,7 +40,7 @@ http://127.0.0.1:8780/
 
 - 当前节点高亮；
 - 已走节点标绿；
-- 每个步骤显示“为什么、输入、输出、设计思路、Harness 取舍、下一步”；
+- 每个步骤显示“为什么、输入、输出、设计思路、Harness 取舍、下一步”，以及对应的上游源码符号；
 - `context_built` / `context_prepared` 显示完整上下文快照，不再只有字符数；
 - `context_assembled` 显示实际进入模型的 System/Human 消息；
 - 事件参数和节点源码在 `RUNTIME X-RAY` 中展示；

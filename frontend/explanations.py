@@ -253,7 +253,46 @@ EVENT_GUIDES.update({
     },
 })
 
+EVENT_GUIDES.update({
+    "turn/start": {"title": "Turn 开始", "why": "dsh 先打开一个 turn，再在 turn 内领取输入并执行一个或多个 step。", "next": "进入 step/start，派生模型消息并准备请求。"},
+    "turn/end": {"title": "Turn 结束", "why": "turn/end 记录结束原因，使 completed、error、max-tokens 或 blocked 都能从日志还原。", "next": "进入 finalize 或返回错误结果。"},
+    "step/start": {"title": "Step 开始", "why": "每个 step 对应一次模型请求及其请求产生的工具调用。", "next": "记录 user/message、request/header 并请求模型。"},
+    "step/end": {"title": "Step 结束", "why": "step 边界让助手结果和工具结果在下一次请求前完成持久化。", "next": "若有工具结果则进入下一个 step，否则关闭 turn。"},
+    "user/message": {"title": "模型可见用户消息", "why": "用户任务或压缩摘要都是 user/message surface 事件，模型历史从它们派生。", "next": "与 request/header、assistant/message 一起构成模型请求。"},
+    "request/header": {"title": "记录请求头", "why": "provider、model、cwd 和 reasoning effort 必须在请求前写入会话日志，才能重建请求。", "next": "执行 session flush，然后调用模型。"},
+    "agent/request": {"title": "发起模型请求", "why": "这是实时协调事件，记录本轮请求实际带上的消息和工具面。", "next": "等待模型流式返回 assistant 内容。"},
+    "assistant/message": {"title": "记录助手消息", "why": "成功模型调用的正文、reasoning block、tool_calls 和 usage 作为一条 surface 事件持久化。", "next": "如果有 tool_calls，进入工具流水线；否则关闭 turn。"},
+    "assistant/attempt": {"title": "记录失败尝试", "why": "失败或重试的模型 attempt 不进入模型可见历史，但仍要留下可诊断的持久记录。", "next": "根据重试策略重跑同一 step，或让 turn 以 error 结束。"},
+    "llm/retry": {"title": "安排模型重试", "why": "重试必须在等待前持久记录，确保崩溃或取消后仍能解释发生了什么。", "next": "等待退避，然后写入 llm/retry-started。"},
+    "llm/retry-started": {"title": "重试开始", "why": "该事件把计划中的重试与真正开始的请求关联起来，并验证 retryId/turn/step。", "next": "在同一个打开的 step 内重新发起模型请求。"},
+    "tool/call": {"title": "记录工具调用", "why": "tool/call 在工具正文执行前写入，确保有副作用的动作有持久意图记录。", "next": "进入审批/策略检查，随后执行工具正文。"},
+    "tool/result": {"title": "记录工具结果", "why": "tool/result 是唯一的模型可见工具结果，并通过 callId 与 tool/call 关联。", "next": "将结果放入派生消息历史，进入下一 step。"},
+    "approval/policy": {"title": "审批策略判定", "why": "read-only、approval mode 和工具风险共同决定是否需要询问。", "next": "进入 approve/deny 或直接执行。"},
+    "approval/asked": {"title": "请求审批", "why": "有副作用的工具在审批模式下需要一次性人工确认。", "next": "记录 approval/decided。"},
+    "approval/decided": {"title": "审批决定", "why": "允许或拒绝都要落日志；拒绝会转成工具错误结果，而不是静默跳过。", "next": "允许则执行工具，拒绝则产生 isError 的 tool/result。"},
+    "session/flush": {"title": "会话检查点", "why": "模型请求前、工具正文前和 step 边界刷新 session 日志，降低崩溃时丢失已记录工作的风险。", "next": "安全检查点通过后继续模型或工具动作。"},
+    "compaction/start": {"title": "压缩开始", "why": "压缩是一个有开始/结束标记的事务，而不是静默改写历史。", "next": "计算要裁剪的旧工具结果或摘要区域。"},
+    "compaction/prune": {"title": "裁剪旧工具结果", "why": "先删除/遮蔽低价值旧工具输出，通常比直接调用摘要模型更便宜。", "next": "进入摘要或直接提交压缩结果。"},
+    "compaction/summary": {"title": "生成压缩摘要", "why": "摘要事件记录被遮蔽的序列范围、token 估计和生成来源，便于重建 surface。", "next": "用一条 user/message 摘要替换旧 surface 区域。"},
+    "compaction/end": {"title": "压缩结束", "why": "结束标记提交替换区域；失败时也会记录在 end 事件中。", "next": "从压缩后的 surface 派生下一次请求。"},
+    "todo/write": {"title": "更新 Todo", "why": "dsh 的 todo 工具把结构化计划写入会话，而不是只留在模型文本里。", "next": "后续 step 会从 session 看到新的 todo 状态。"},
+})
+
 DESIGN_NOTES: dict[str, str] = {
+    "turn/start": "turn 是持久生命周期的容器，step 是真正可重试的模型请求边界；把两者分开，错误恢复、取消和 token 统计才有稳定坐标。",
+    "turn/end": "显式结束原因使恢复逻辑能区分正常完成、模型错误、上下文溢出和中止，而不是靠最后一个消息猜测。",
+    "step/start": "一个 step 只对应一次模型请求及其工具调用，重试时可以完整重跑同一 step，而不会把多个请求混在一起。",
+    "step/end": "step 结束是 session checkpoint 的天然边界，保证上一响应和工具结果在下一请求前已持久化。",
+    "request/header": "请求头固定 provider/model/cwd/reasoning effort，日志才能证明模型请求是从哪套配置重建的。",
+    "assistant/message": "把正文、reasoning 和 tool_calls 放在同一条 assistant 事件里，避免 UI 与服务端各自拼接导致历史不一致。",
+    "assistant/attempt": "失败 attempt 不应污染模型可见历史，但必须持久化用于诊断；因此它是独立 settlement 事件。",
+    "tool/call": "先记录调用意图再执行，是副作用安全的关键顺序；崩溃时至少知道调用已经准备发生。",
+    "tool/result": "工具错误也必须是正式 result，而不是抛异常穿透循环；这样模型能看见错误并决定重试或换路。",
+    "session/flush": "存在外部副作用的 Agent 必须把持久化检查点放在模型请求和工具正文之前，否则崩溃恢复无法判断哪些动作已经发出。",
+    "compaction/start": "压缩会改写模型可见 surface，所以不能静默执行；显式 start/end 让替换过程可审计。",
+    "compaction/prune": "先 prune 旧工具结果再摘要，优先使用成本低、可预测的压缩手段。",
+    "compaction/summary": "摘要事件记录被遮蔽事件范围与 token 估算，使下一次请求可以从日志重建而无需保留原始大文本。",
+    "compaction/end": "即使压缩失败也要关闭事务，避免留下无法判断状态的悬空 compaction。",
     "fault_injected": "故障注入把不可控的生产异常变成可重复的教学实验。它只在显式选择时启用，避免把演示故障误认为真实故障；事件中同时记录 component 和 mode，便于区分模型、规划、插件和工具四类恢复路径。",
     "stage_started": "用阶段边界包围一组动作，能让异常定位、耗时统计和 UI 回放共享同一套坐标系；这比只记录最终答案更容易解释 Agent 为什么走到某一步。",
     "stage_completed": "把开始和完成拆成两个事件，才能表示“进行中”“成功完成”“异常退出”三种状态；只记录完成会让崩溃路径不可见。",
@@ -300,7 +339,67 @@ SYSTEM_NOTES: dict[str, str] = {
     "codex": "Codex 风格强调 turn loop、工具执行和验证闭环；计划与事件流服务于开发任务的审计，而不是通用闲聊。",
     "claude": "Claude 风格强调权限模式、hooks、TodoWrite 和 queryLoop；安全边界与工具前置检查是这套设计的中心。",
     "hermes": "Hermes 风格强调长期身份、记忆、技能和后台复盘；主对话与后台学习隔离，追求跨会话持续变强。",
-    "deepseek": "DeepSeek 套件强调推理内容与工具循环分离：reasoning 单独记录，正文负责回答，工具调用走与 Codex 相同的事件和审批边界。",
+    "deepseek": "DeepSeek 套件直接对齐 dsh 的 session event、agent-loop、tool-calls、llm-retry 与 compaction 语义：session 是唯一真源，turn/step 是生命周期，tool/call 与 tool/result 先记录后执行。",
+}
+
+
+SOURCE_REFERENCES: dict[str, dict[str, list[str]]] = {
+    "codex": {
+        "run_started": ["codex-rs/core/src/session/turn.rs::run_turn"],
+        "context_built": ["codex-rs/core/src/agents_md.rs", "codex-rs/core/src/session/turn_context.rs::TurnContext"],
+        "plan_created": ["codex-rs/core/src/tools/handlers/plan.rs", "codex-rs/protocol/src/plan_tool.rs"],
+        "model_request": ["codex-rs/core/src/session/turn.rs::run_turn"],
+        "tool_started": ["codex-rs/core/src/tools/spec_plan.rs::build_tool_router"],
+        "tool_finished": ["codex-rs/protocol/src/protocol.rs::EventMsg"],
+        "context_compacted": ["codex-rs/core/src/compact.rs"],
+        "multi_agent_tools_loaded": ["codex-rs/core/src/agent/control/"],
+    },
+    "claude": {
+        "context_prepared": ["restored-src/src/utils/claudemd.ts"],
+        "todo_created": ["restored-src/src/tools/", "Claude Code TodoWrite"],
+        "model_request": ["restored-src/src/query.ts::queryLoop"],
+        "tool_started": ["restored-src/src/tools/"],
+        "permission_decision": ["Claude Code Tool permission pipeline"],
+        "hook_pre_tool": ["Claude Code hooks"],
+        "context_compacted": ["restored-src/src/services/compact/"],
+        "subagent_spawned": ["Claude Code Task / TaskOutput / SendMessage"],
+        "mcp_tools_loaded": ["Claude Code MCP service"],
+    },
+    "hermes": {
+        "context_prepared": ["agent/memory_context.py", "toolsets.py"],
+        "memory_changed": ["tools/memory_tool_store.py::MemoryStore", "agent/memory_context.py"],
+        "skill_viewed": ["tools/skills_tool.py", "tools/skill_manager_tool.py"],
+        "skill_changed": ["tools/skill_manager_tool.py", "agent/curator.py"],
+        "review_completed": ["agent/background_review.py"],
+        "turn_completed": ["agent/conversation_loop.py::_run_conversation_turn"],
+        "toolsets_resolved": ["toolsets.py"],
+    },
+    "deepseek": {
+        "run_started": ["packages/core/agent-loop/src/agent.ts::ReactLoopAgent.turn"],
+        "context_built": ["packages/core/agent-loop/src/agent.ts::step", "packages/core/session/src/index.ts::deriveMessages"],
+        "turn/start": ["packages/core/agent-loop/src/agent.ts::turn", "packages/core/session/src/types.ts::SessionEventMap"],
+        "step/start": ["packages/core/agent-loop/src/agent.ts::step"],
+        "user/message": ["packages/core/session/src/types.ts::user/message"],
+        "request/header": ["packages/core/session/src/types.ts::request/header"],
+        "agent/request": ["packages/core/agent-loop/src/agent.ts::step"],
+        "assistant/message": ["packages/core/session/src/types.ts::assistant/message"],
+        "assistant/attempt": ["packages/core/session/src/types.ts::assistant/attempt"],
+        "llm/retry": ["packages/llm/llm-retry/src/index.ts::backoff"],
+        "llm/retry-started": ["packages/llm/llm-retry/src/index.ts::backoff"],
+        "tool/call": ["packages/core/agent-loop/src/tool-calls.ts::appendToolCall"],
+        "tool/result": ["packages/core/agent-loop/src/tool-calls.ts::appendToolResult"],
+        "approval/policy": ["docs/tool-execution-pipeline.zh.md", "packages/core/agent-loop/src/tool-calls.ts"],
+        "approval/asked": ["docs/tool-execution-pipeline.zh.md"],
+        "approval/decided": ["docs/tool-execution-pipeline.zh.md"],
+        "session/flush": ["packages/session/session-checkpoint-policy/src/index.ts"],
+        "compaction/start": ["packages/compaction/compaction-basic/src/region.ts"],
+        "compaction/prune": ["packages/compaction/compaction-tool-result-pruner/src/index.ts"],
+        "compaction/summary": ["packages/compaction/compaction-basic/src/region.ts"],
+        "compaction/end": ["packages/compaction/compaction-basic/src/region.ts"],
+        "step/end": ["packages/core/agent-loop/src/agent.ts::step", "packages/core/session/src/types.ts::step/end"],
+        "turn/end": ["packages/core/session/src/types.ts::turn/end"],
+        "todo/write": ["packages/core/session/src/types.ts::todo/write"],
+    },
 }
 
 
@@ -453,6 +552,54 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         input_text = f"component={data.get('component', '?')}；上限={data.get('max_steps', data.get('max_turns', '?'))}"
         output_text = message or "运行达到硬上限"
         next_text = "返回部分结果，并保留需要人工调整的提示。"
+    elif event_type in {"turn/start", "step/start", "step/end"}:
+        input_text = f"turn={data.get('turn', '?')}，step={data.get('step', '?')}"
+        output_text = message or "生命周期事件已写入 session"
+        next_text = "继续当前 turn/step 生命周期。"
+    elif event_type == "turn/end":
+        reason = data.get("reason") if isinstance(data.get("reason"), dict) else {}
+        input_text = f"turn={data.get('turn', '?')}"
+        output_text = f"reason.kind={reason.get('kind', '?')}；{message}"
+        next_text = "结束运行并保留可诊断的结束原因。"
+    elif event_type == "request/header":
+        header = data.get("header") if isinstance(data.get("header"), dict) else {}
+        input_text = f"provider={header.get('provider', '?')}，model={header.get('model', '?')}，cwd={header.get('cwd', '?')}"
+        output_text = f"reason={data.get('reason', '?')}；请求头已持久化"
+        next_text = "执行 session flush 后调用模型。"
+    elif event_type == "agent/request":
+        input_text = f"turn={data.get('turn', '?')}，step={data.get('step', '?')}，message_count={data.get('message_count', '?')}"
+        output_text = "实时模型请求已发出；实际消息可在下方查看。"
+        next_text = "等待 assistant/message 或 assistant/attempt。"
+    elif event_type == "assistant/message":
+        tool_calls = data.get("tool_calls") or []
+        usage = data.get("usage") or {}
+        input_text = f"turn={data.get('turn', '?')}，step={data.get('step', '?')}"
+        output_text = f"tool_calls={len(tool_calls)}；usage={_json_preview(usage)}；{message}"
+        next_text = "有 tool_calls 则进入工具流水线，否则关闭 turn。"
+    elif event_type == "assistant/attempt":
+        input_text = f"turn={data.get('turn', '?')}，step={data.get('step', '?')}"
+        output_text = f"失败 attempt 已记录；{message}"
+        next_text = "根据 retry 或 turn/end 决定恢复路径。"
+    elif event_type == "tool/call":
+        input_text = f"tool={data.get('name', '?')}；arguments={data.get('arguments', '')}"
+        output_text = f"callId={data.get('callId', '?')}；调用已记录，等待策略/执行。"
+        next_text = "审批通过后执行工具，并产生 tool/result。"
+    elif event_type == "tool/result":
+        input_text = f"callId={data.get('callId', '?')}；name={data.get('name', '?')}"
+        output_text = f"isError={data.get('isError', '?')}；{message}"
+        next_text = "将结果加入派生历史，进入下一 step。"
+    elif event_type.startswith("approval/"):
+        input_text = f"tool={data.get('tool', '?')}；callId={data.get('callId', '?')}；mode={data.get('mode', '-')}"
+        output_text = f"behavior={data.get('behavior', '-')}；reason={data.get('reason', message)}"
+        next_text = "按策略决定是否执行工具正文。"
+    elif event_type == "session/flush":
+        input_text = f"phase={data.get('phase', '?')}，turn={data.get('turn', '?')}，step={data.get('step', '?')}"
+        output_text = f"session_file={data.get('session_file', '?')}"
+        next_text = "检查点成功后再继续模型请求或工具正文。"
+    elif event_type.startswith("compaction/"):
+        input_text = f"compactionId={data.get('compactionId', '?')}，turn={data.get('turn', '?')}"
+        output_text = message or "压缩事务状态已更新"
+        next_text = "完成后从压缩后的 session surface 派生下一次请求。"
     elif event_type == "context_compacted":
         input_text = f"压缩方法：{data.get('method', data.get('removed', '?'))}"
         output_text = (f"before_tokens={data.get('before_tokens', '?')}，"
@@ -488,4 +635,5 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         "stage": stage_label,
         "design": DESIGN_NOTES.get(event_type, "这个事件把内部状态变成可观察事实，便于定位流程、复现问题和比较不同 Harness 的实现。"),
         "system_design": SYSTEM_NOTES.get(system, "不同 Harness 共享事件协议，但上下文、权限和持久化策略不同。"),
+        "source_refs": SOURCE_REFERENCES.get(system, {}).get(event_type, []),
     }

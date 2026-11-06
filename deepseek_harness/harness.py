@@ -1,18 +1,31 @@
-"""DeepSeek Harness 主循环。
+"""DeepSeek Harness 主循环（按官方源码重构的 mini 版）。
 
-这不是简单复制 Codex：DeepSeek 套件额外展示推理模型常见的三件事：
+主要源码映射：
+- packages/core/agent-loop/src/agent.ts::ReactLoopAgent.turn / step
+- packages/core/agent-loop/src/tool-calls.ts::executeToolCalls
+- packages/core/session/src/types.ts::SessionEventMap
+- packages/core/session/src/index.ts::Session.append / deriveMessages
+- packages/llm/llm-retry/src/index.ts::backoff / recover
+- packages/compaction/compaction-basic/src/region.ts
+- packages/compaction/compaction-tool-result-pruner/src/index.ts
+- packages/session/session-checkpoint-policy/src/index.ts
 
-1. 将 reasoning_content 与最终正文分开记录；
-2. 对模型调用做有限重试，并把重试决策写入事件流；
-3. 每个模型/工具步骤写 checkpoint，失败时能从证据链定位断点。
+本实现保留源码的核心不变量：
+1. session event 是唯一真源，模型消息从 session 派生；
+2. 一次 turn 由多个 step 组成，每个 step 一次模型请求加其工具调用；
+3. tool/call 先持久化，再审批/执行，tool/result 以同一 callId 回填；
+4. 重试属于打开的 step，先记录 llm/retry，再等待，再记录 llm/retry-started；
+5. 压缩按 compaction/start -> prune -> summary -> end 记录；
+6. 工具正文前、模型请求前、step 边界执行 session flush。
 
-工具、审批、插件、MCP 和多 Agent 复用 agent_runtime 与 mini_codex 的
-共享实现，保证四套 Harness 的边界一致、对比公平。
+为保持教学项目可运行，省略 Cordis 插件树、完整 projection、
+并行工具调度、AbortSignal、持久化 generation 与 subagent 的完整 seam。
 """
 
 from __future__ import annotations
 
 import json
+import random
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -28,10 +41,17 @@ from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
 from mini_codex.events import EventBus
 from mini_codex.multi_agent import READ_ONLY_TOOL_NAMES, build_codex_agent_tools
-from mini_codex.state import ChangeTracker, CommandRecord, Plan, PlanState
+from mini_codex.state import ChangeTracker, CommandRecord, PlanState
 from mini_codex.tools import ToolContext, build_tools
 from .config import DeepSeekHarnessConfig
 from .context import DeepSeekContextManager
+from .session import DeepSeekSession
+from .tool_pipeline import DeepSeekToolPipeline
+
+
+READ_ONLY_TOOLS = set(READ_ONLY_TOOL_NAMES) | {
+    "read_file", "list_files", "search_text", "git_status", "git_diff",
+}
 
 
 @dataclass
@@ -43,29 +63,36 @@ class DeepSeekRunResult:
     commands: list[CommandRecord]
     run_dir: Path
     timeline_path: Path
+    session_path: Path
     success: bool
     elapsed_ms: float
-    checkpoints: int = 0
+    turns: int = 1
+    steps: int = 0
+    flushes: int = 0
     retries: int = 0
     errors: list[str] = field(default_factory=list)
 
 
 class DeepSeekHarness:
-    """带推理内容记录、重试和 checkpoint 的 DeepSeek 编码 Harness。"""
+    """按 dsh session/agent-loop/tool-pipeline 复刻的 mini Harness。"""
 
     def __init__(
         self,
         config: DeepSeekHarnessConfig,
         *,
         model: Any | None = None,
-        planner: Any | None = None,
     ) -> None:
         self.config = config
         self.model = model or build_chat_model(
-            **( {"model": config.model_name} if config.model_name else {} )
+            **({"model": config.model_name} if config.model_name else {})
         )
-        self.planner = planner
-        self.checkpoints = 0
+        self.resolved_model_name = (
+            config.model_name
+            or getattr(self.model, "model_name", None)
+            or getattr(self.model, "model", None)
+            or "config-default"
+        )
+        self.flushes = 0
         self.retries = 0
         self._fault_announced = False
         self._tool_fault_injected = False
@@ -76,7 +103,7 @@ class DeepSeekHarness:
         self._fault_announced = True
         bus.emit(
             "fault_injected",
-            "agent" if component not in {"planner", "plugins"} else ("plan" if component == "planner" else "agent"),
+            "agent" if component != "planner" else "plan",
             message,
             component=component,
             mode=self.config.fault_mode,
@@ -84,8 +111,6 @@ class DeepSeekHarness:
 
     @staticmethod
     def _reasoning_text(response: Any) -> str:
-        """兼容不同 DashScope/OpenAI 兼容层的推理字段位置。"""
-
         additional = getattr(response, "additional_kwargs", None) or {}
         metadata = getattr(response, "response_metadata", None) or {}
         for source in (additional, metadata):
@@ -96,163 +121,202 @@ class DeepSeekHarness:
         if isinstance(content, list):
             parts: list[str] = []
             for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") in {"reasoning", "thinking"}:
-                        value = block.get("reasoning") or block.get("text")
-                        if isinstance(value, str):
-                            parts.append(value)
+                if isinstance(block, dict) and block.get("type") in {"reasoning", "thinking"}:
+                    value = block.get("reasoning") or block.get("text")
+                    if isinstance(value, str):
+                        parts.append(value)
             return "\n".join(parts)
         return ""
+
+    @staticmethod
+    def _failure_code(exc: Exception) -> str:
+        text = f"{type(exc).__name__}: {exc}".lower()
+        if "timeout" in text or "timed out" in text:
+            return "TIMEOUT"
+        if "rate" in text and "limit" in text:
+            return "RATE_LIMIT"
+        if "connection" in text or "transport" in text:
+            return "TRANSPORT"
+        return "SERVER"
+
+    def _retry_delay_ms(self, retry: int) -> int:
+        exponent = min(retry - 1, 16)
+        raw = min(
+            self.config.retry_initial_delay_ms * (2 ** exponent),
+            self.config.retry_max_delay_ms,
+        )
+        jitter = 1 - self.config.retry_jitter_ratio + 2 * self.config.retry_jitter_ratio * random.random()
+        return int(min(raw * jitter, self.config.retry_max_delay_ms))
 
     def _invoke_model(
         self,
         model: Any,
         messages: list[Any],
-        bus: EventBus,
         *,
+        session: DeepSeekSession,
+        turn: int,
         step: int,
-    ) -> Any | None:
+    ) -> tuple[Any | None, dict[str, Any] | None]:
         total_attempts = self.config.max_model_retries + 1
+        failure: dict[str, Any] | None = None
         for attempt in range(1, total_attempts + 1):
             try:
                 if self.config.fault_mode == "model_error" and step == 1:
-                    self._announce_fault(bus, "model", "已注入模型调用故障，用于观察重试与终止路径")
+                    self._announce_fault(session.bus, "model", "已注入模型调用故障，用于观察 llm/retry")
                     raise RuntimeError("simulated model failure")
-                response = model.invoke(messages)
-                if attempt > 1:
-                    bus.emit(
-                        "retry_succeeded",
-                        "agent",
-                        f"第 {step} 步模型调用在第 {attempt} 次尝试成功",
-                        step=step,
-                        attempt=attempt,
-                    )
-                return response
+                return model.invoke(messages), None
             except Exception as exc:
-                errors_text = f"{type(exc).__name__}: {exc}"
-                if attempt < total_attempts:
-                    self.retries += 1
-                    bus.emit("error", "agent", f"模型调用失败：{errors_text}")
-                    bus.emit(
-                        "retry_scheduled",
-                        "agent",
-                        f"模型调用失败，{self.config.retry_delay_seconds}s 后重试",
-                        step=step,
-                        attempt=attempt,
-                        max_attempts=total_attempts,
-                        error=errors_text,
-                    )
-                    if self.config.retry_delay_seconds > 0:
-                        time.sleep(self.config.retry_delay_seconds)
-                    continue
-                bus.emit("error", "agent", f"模型调用失败：{errors_text}")
-                bus.emit(
-                    "failure_summary",
-                    "agent",
-                    "模型在有限重试后仍失败，安全终止",
-                    component="model",
-                    strategy="return_failure_answer_after_retries",
-                    attempts=attempt,
-                    error=errors_text,
+                failure = {
+                    "code": self._failure_code(exc),
+                    "message": f"{type(exc).__name__}: {exc}",
+                }
+                if attempt >= total_attempts:
+                    break
+                self.retries += 1
+                retry_id = uuid.uuid4().hex
+                delay_ms = self._retry_delay_ms(attempt)
+                session.append(
+                    "llm/retry",
+                    stage="agent",
+                    message=f"model retry {attempt} scheduled in {delay_ms}ms",
+                    data={
+                        "retryId": retry_id,
+                        "turn": turn,
+                        "step": step,
+                        "provider": "deepseek",
+                        "mode": "normal",
+                        "policyKey": f"deepseek:{self.config.max_model_retries}",
+                        "retry": attempt,
+                        "maxRetries": self.config.max_model_retries,
+                        "delayMs": delay_ms,
+                        "failure": failure,
+                    },
+                    bus_data={"turn": turn, "step": step, "retry": attempt, "delay_ms": delay_ms, "failure": failure},
                 )
-                return None
-        return None
-
-    def _save_checkpoint(
-        self,
-        run_dir: Path,
-        bus: EventBus,
-        *,
-        step: int,
-        phase: str,
-        messages: list[Any],
-        plan_state: PlanState,
-        changes: ChangeTracker,
-        commands: list[CommandRecord],
-    ) -> None:
-        self.checkpoints += 1
-        path = run_dir / "checkpoint.json"
-        payload = {
-            "step": step,
-            "phase": phase,
-            "plan": plan_state.to_text(),
-            "messages": serialize_messages(messages),
-            "changed_files": changes.changed_files(),
-            "commands": [
-                {"command": item.command, "returncode": item.returncode}
-                for item in commands
-            ],
-        }
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
-        bus.emit(
-            "checkpoint_saved",
+                if delay_ms > 0:
+                    time.sleep(delay_ms / 1000)
+                session.append(
+                    "llm/retry-started",
+                    stage="agent",
+                    message=f"model retry {attempt} started",
+                    data={"retryId": retry_id, "turn": turn, "step": step, "retry": attempt},
+                    bus_data={"turn": turn, "step": step, "retry": attempt},
+                )
+        session.bus.emit(
+            "failure_summary",
             "agent",
-            f"checkpoint: step={step} phase={phase}",
-            step=step,
-            phase=phase,
-            path=str(path),
+            "模型重试耗尽，step 以 error 结束",
+            component="model",
+            strategy="turn_end_error",
+            attempts=total_attempts,
+            failure=failure,
         )
+        return None, failure
 
-    def _plan(self, task: str, context: DeepSeekContextManager, bus: EventBus) -> Plan:
-        prompt = [
-            SystemMessage(
-                content=(
-                    "你是 DeepSeek 编码任务规划器。根据任务、项目规则和环境，"
-                    "给出 3 到 6 个可执行步骤。步骤必须围绕检查、修改、验证、总结。"
-                )
-            ),
-            HumanMessage(
-                content=(
-                    f"任务：\n{task}\n\n"
-                    f"环境：\n{context.environment}\n\n"
-                    f"项目规则：\n{context.project_instructions or '(none)'}"
-                )
-            ),
-        ]
-        try:
-            if self.config.fault_mode == "planner_error":
-                self._announce_fault(bus, "planner", "已注入规划故障，用于观察默认计划降级")
-                raise RuntimeError("simulated planner failure")
-            planner = self.planner
-            if planner is None:
-                planner = self.model.with_structured_output(Plan, method="function_calling")
-            result = planner.invoke(prompt)
-            plan = result if isinstance(result, Plan) else Plan.model_validate(result)
-            if not plan.items:
-                raise ValueError("模型返回空计划")
-            return plan
-        except Exception as exc:
-            bus.emit("warning", "plan", f"结构化规划失败，使用默认计划：{exc}")
-            bus.emit(
-                "fallback_applied",
-                "plan",
-                "规划失败，已切换到确定性的默认计划",
-                component="planner",
-                strategy="use_default_plan",
-                error=str(exc),
+    def _maybe_compact(
+        self,
+        session: DeepSeekSession,
+        messages: list[Any],
+        *,
+        turn: int,
+        step: int,
+    ) -> list[Any]:
+        before = DeepSeekContextManager.estimate_tokens(messages)
+        if before <= self.config.compact_threshold or len(messages) <= 10:
+            return messages
+        message_events = session.message_events()
+        victims = message_events[:-6]
+        if not victims:
+            return messages
+        shadowed_seqs = [event.seq for event in victims]
+        start_seq = min(shadowed_seqs)
+        end_seq = max(shadowed_seqs)
+        compaction_id = uuid.uuid4().hex
+        lifecycle = {"compactionId": compaction_id, "turn": turn}
+        session.append(
+            "compaction/start",
+            stage="compaction",
+            message=f"compaction started for {len(victims)} events",
+            data=lifecycle,
+            bus_data={**lifecycle, "step": step, "beforeTokens": before},
+        )
+        prunable = [event.seq for event in victims if event.type == "tool/result"]
+        if prunable:
+            session.append(
+                "compaction/prune",
+                stage="compaction",
+                message=f"pruned {len(prunable)} tool results",
+                data={
+                    "compactionId": compaction_id,
+                    "turn": turn,
+                    "shadowedSeqs": prunable,
+                },
+                bus_data={"pruned": len(prunable), "shadowedSeqs": prunable},
             )
-            return Plan(
-                summary="先检查仓库，再实现最小修改，最后验证并总结。",
-                items=[
-                    {"title": "检查仓库和任务相关文件", "status": "pending"},
-                    {"title": "实现最小代码修改", "status": "pending"},
-                    {"title": "运行测试或验证命令", "status": "pending"},
-                    {"title": "检查变更并总结", "status": "pending"},
-                ],
-            )
+        summary = (
+            f"[DeepSeek compaction] {len(victims)} 条较早事件已被摘要替换。"
+            "继续遵守当前任务、plan、工具结果和 workspace 边界。"
+        )
+        summary_event = session.append(
+            "compaction/summary",
+            stage="compaction",
+            message=summary,
+            data={
+                "compactionId": compaction_id,
+                "turn": turn,
+                "summary": summary,
+                "shadowedRange": {"start": start_seq, "end": end_seq},
+                "shadowedSeqs": shadowed_seqs,
+                "shadowedTokenCount": before,
+                "provider": "deepseek",
+                "model": self.resolved_model_name,
+            },
+            bus_data={"shadowed": len(shadowed_seqs), "beforeTokens": before},
+            source_event_seqs=shadowed_seqs,
+        )
+        session.append(
+            "user/message",
+            stage="compaction",
+            message="compaction checkpoint injected",
+            data={
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "text", "text": summary}],
+                    "source": {"kind": "compaction", "compactionId": compaction_id},
+                }
+            },
+            bus_data={"summary": summary},
+            surface_op={"op": "replace", "start": start_seq, "end": end_seq},
+            source_event_seqs=[*shadowed_seqs, summary_event.seq],
+        )
+        session.append(
+            "compaction/end",
+            stage="compaction",
+            message="compaction completed",
+            data=lifecycle,
+            bus_data={**lifecycle, "step": step, "afterTokens": before},
+        )
+        return session.derive_messages()
+
+    def _system_prompt(self, context: DeepSeekContextManager, plan_state: PlanState) -> str:
+        from .context import BASE_SYSTEM_PROMPT
+
+        return BASE_SYSTEM_PROMPT + context.system_context(plan_state.to_text())
 
     def run(self, task: str) -> DeepSeekRunResult:
         started = time.perf_counter()
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         run_dir = (self.config.trace_root or self.config.workspace / ".deepseek" / "runs") / run_id
         bus = EventBus(run_dir, console=self.config.console)
+        session = DeepSeekSession(run_dir, bus)
         errors: list[str] = []
         plan_state = PlanState()
         changes = ChangeTracker()
         commands: list[CommandRecord] = []
         final_answer = ""
         verification_passed: bool | None = None
-        tool_map: dict[str, Any] = {}
+        steps = 0
+        turn_end_reason: dict[str, Any] = {"kind": "completed"}
 
         bus.emit("run_started", "bootstrap", f"task={task}", workspace=str(self.config.workspace))
         try:
@@ -265,7 +329,7 @@ class DeepSeekHarness:
                 context = DeepSeekContextManager(
                     self.config.workspace,
                     self.config.token_budget,
-                    self.config.model_name or "config-default",
+                    self.resolved_model_name,
                 )
                 bus.emit(
                     "context_built",
@@ -275,232 +339,275 @@ class DeepSeekHarness:
                     context_snapshot=context.snapshot(task),
                 )
 
-            with bus.stage("plan", "先用结构化输出生成计划，再进入工具循环"):
-                plan = self._plan(task, context, bus)
-                plan_state.set(plan)
-                bus.emit("plan_created", "plan", "计划已生成", plan=plan.model_dump())
+            tool_ctx = ToolContext(
+                workspace=self.config.workspace,
+                plan=plan_state,
+                changes=changes,
+                commands=commands,
+                event_bus=bus,
+                command_timeout=self.config.command_timeout,
+                approval=ApprovalManager(self.config.approval_mode),
+            )
+            tools = build_tools(tool_ctx)
 
-            with bus.stage("agent", "模型推理 → 工具执行 → 观察 → 再推理"):
-                plan_text = plan_state.to_text()
-                messages = context.initial_messages(task, plan_text)
+            plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
+            try:
+                if self.config.fault_mode == "plugin_error":
+                    self._announce_fault(bus, "plugins", "已注入插件装载故障，用于观察无插件降级")
+                    raise RuntimeError("simulated plugin failure")
+                plugin_tools = plugin_registry.load()
+            except Exception as exc:
+                plugin_tools = []
+                errors.append(f"plugins: {exc}")
+                bus.emit("error", "bootstrap", f"插件加载失败：{exc}")
                 bus.emit(
-                    "context_assembled",
-                    "agent",
-                    "完整 DeepSeek 上下文已装配为模型消息",
-                    message_count=len(messages),
-                    context_snapshot=context.snapshot(task, plan_text),
-                    messages=serialize_messages(messages),
+                    "fallback_applied",
+                    "bootstrap",
+                    "插件加载失败，继续使用内置工具",
+                    component="plugins",
+                    strategy="continue_without_plugins",
+                    error=str(exc),
+                )
+            if plugin_tools:
+                tools.extend(plugin_tools)
+                bus.emit(
+                    "plugin_tools_loaded",
+                    "bootstrap",
+                    f"loaded {len(plugin_tools)} plugin tools",
+                    tools=[item.name for item in plugin_tools],
                 )
 
-                tool_ctx = ToolContext(
-                    workspace=self.config.workspace,
-                    plan=plan_state,
-                    changes=changes,
-                    commands=commands,
-                    event_bus=bus,
-                    command_timeout=self.config.command_timeout,
-                    approval=ApprovalManager(self.config.approval_mode),
-                )
-                tools = build_tools(tool_ctx)
+            if self.config.enable_mcp:
+                from mini_codex.mcp_client import load_mcp_tools
 
-                plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
+                server_script = (
+                    self.config.mcp_server_script
+                    or Path(__file__).resolve().parent.parent / "claude_harness" / "mcp_server.py"
+                )
                 try:
-                    if self.config.fault_mode == "plugin_error":
-                        self._announce_fault(bus, "plugins", "已注入插件装载故障，用于观察无插件降级")
-                        raise RuntimeError("simulated plugin failure")
-                    plugin_tools = plugin_registry.load()
+                    mcp_tools = load_mcp_tools(self.config.workspace, server_script)
+                    tools.extend(mcp_tools)
+                    bus.emit("mcp_tools_loaded", "bootstrap", f"loaded {len(mcp_tools)} MCP tools", tools=[item.name for item in mcp_tools])
                 except Exception as exc:
-                    plugin_tools = []
-                    errors.append(f"plugins: {exc}")
-                    bus.emit("error", "agent", f"插件加载失败：{exc}")
+                    errors.append(f"mcp: {exc}")
+                    bus.emit("error", "bootstrap", f"MCP 加载失败：{exc}")
                     bus.emit(
                         "fallback_applied",
-                        "agent",
-                        "插件加载失败，继续使用内置工具",
-                        component="plugins",
-                        strategy="continue_without_plugins",
+                        "bootstrap",
+                        "MCP 不可用，继续使用内置/插件工具",
+                        component="mcp",
+                        strategy="continue_without_mcp",
                         error=str(exc),
                     )
-                if plugin_tools:
-                    tools.extend(plugin_tools)
-                    bus.emit(
-                        "plugin_tools_loaded",
-                        "agent",
-                        f"loaded {len(plugin_tools)} plugin tools",
-                        tools=[item.name for item in plugin_tools],
+
+            if self.config.enable_multi_agent:
+                read_only_tools = [item for item in tools if item.name in READ_ONLY_TOOLS]
+                agent_tools = build_codex_agent_tools(self.model, read_only_tools, bus)
+                tools.extend(agent_tools)
+                bus.emit("multi_agent_tools_loaded", "bootstrap", f"loaded {len(agent_tools)} multi-agent tools", tools=[item.name for item in agent_tools])
+
+            tool_map = {item.name: item for item in tools}
+            model = self.model.bind_tools(tools)
+            pipeline = DeepSeekToolPipeline(
+                session=session,
+                tool_map=tool_map,
+                approval=ApprovalManager(self.config.approval_mode),
+                read_only_names=READ_ONLY_TOOLS,
+            )
+
+            turn = 1
+            session.append(
+                "turn/start",
+                stage="agent",
+                message=f"turn {turn} started",
+                data={"turn": turn},
+                bus_data={"turn": turn},
+            )
+            for step in range(1, self.config.max_steps + 1):
+                steps = step
+                messages = session.derive_messages()
+                messages = self._maybe_compact(session, messages, turn=turn, step=step)
+                session.append(
+                    "step/start",
+                    stage="agent",
+                    message=f"step {step} started",
+                    data={"turn": turn, "step": step},
+                    bus_data={"turn": turn, "step": step},
+                )
+                if step == 1:
+                    session.append(
+                        "user/message",
+                        stage="agent",
+                        message=task,
+                        data={
+                            "message": {
+                                "role": "user",
+                                "content": [{"type": "text", "text": task}],
+                                "source": {"kind": "user"},
+                            }
+                        },
+                        bus_data={"text": task},
+                        surface_op="append",
                     )
+                    messages = session.derive_messages()
 
-                if self.config.enable_mcp:
-                    from mini_codex.mcp_client import load_mcp_tools
+                session.append(
+                    "request/header",
+                    stage="agent",
+                    message="request header recorded",
+                    data={
+                        "header": {
+                            "provider": "deepseek",
+                            "model": self.resolved_model_name,
+                            "cwd": str(self.config.workspace),
+                            "reasoningEffort": self.config.reasoning_effort,
+                        },
+                        "reason": "initial" if step == 1 else "series",
+                    },
+                    bus_data={"provider": "deepseek", "model": self.resolved_model_name, "step": step},
+                )
+                session.flush(phase="before_request", turn=turn, step=step)
+                self.flushes += 1
+                bus.emit(
+                    "agent/request",
+                    "agent",
+                    f"turn {turn} step {step} request",
+                    turn=turn,
+                    step=step,
+                    message_count=len(messages),
+                    messages=serialize_messages(messages),
+                    system_prompt=self._system_prompt(context, plan_state),
+                )
 
-                    server_script = (
-                        self.config.mcp_server_script
-                        or Path(__file__).resolve().parent.parent / "claude_harness" / "mcp_server.py"
+                request_messages = [
+                    SystemMessage(content=self._system_prompt(context, plan_state)),
+                    *messages,
+                ]
+                response, failure = self._invoke_model(
+                    model,
+                    request_messages,
+                    session=session,
+                    turn=turn,
+                    step=step,
+                )
+                if response is None:
+                    session.append(
+                        "assistant/attempt",
+                        stage="agent",
+                        message="model attempt failed",
+                        data={
+                            "turn": turn,
+                            "step": step,
+                            "stream": [{"type": "error", "text": failure.get("message", "model failed")}],
+                        },
+                        bus_data={"turn": turn, "step": step, "failure": failure},
                     )
-                    try:
-                        mcp_tools = load_mcp_tools(self.config.workspace, server_script)
-                        tools.extend(mcp_tools)
-                        bus.emit(
-                            "mcp_tools_loaded",
-                            "agent",
-                            f"loaded {len(mcp_tools)} MCP tools",
-                            tools=[item.name for item in mcp_tools],
-                        )
-                    except Exception as exc:
-                        errors.append(f"mcp: {exc}")
-                        bus.emit("error", "agent", f"MCP 加载失败：{exc}")
-                        bus.emit(
-                            "fallback_applied",
-                            "agent",
-                            "MCP 不可用，继续使用内置/插件工具",
-                            component="mcp",
-                            strategy="continue_without_mcp",
-                            error=str(exc),
-                        )
+                    session.append("step/end", stage="agent", message=f"step {step} ended", data={"turn": turn, "step": step}, bus_data={"turn": turn, "step": step})
+                    turn_end_reason = {"kind": "error", "error": failure}
+                    final_answer = f"运行失败：{failure.get('message')}"
+                    break
 
-                if self.config.enable_multi_agent:
-                    read_only_tools = [item for item in tools if item.name in READ_ONLY_TOOL_NAMES]
-                    agent_tools = build_codex_agent_tools(self.model, read_only_tools, bus)
-                    tools.extend(agent_tools)
-                    bus.emit(
-                        "multi_agent_tools_loaded",
-                        "agent",
-                        f"loaded {len(agent_tools)} multi-agent tools",
-                        tools=[item.name for item in agent_tools],
+                reasoning = self._reasoning_text(response)
+                text = message_text(response)
+                tool_calls = list(getattr(response, "tool_calls", None) or [])
+                usage = getattr(response, "usage_metadata", None) or {}
+                content_blocks: list[dict[str, Any]] = []
+                if reasoning:
+                    content_blocks.append({"type": "reasoning", "text": reasoning})
+                if text:
+                    content_blocks.append({"type": "text", "text": text})
+                assistant_payload = {
+                    "role": "assistant",
+                    "content": content_blocks,
+                    "tool_calls": tool_calls,
+                }
+                stream = [
+                    {"type": "reasoning", "text": reasoning},
+                    {"type": "text", "text": text},
+                ] if reasoning else [{"type": "text", "text": text}]
+                assistant_data: dict[str, Any] = {
+                    "turn": turn,
+                    "step": step,
+                    "message": assistant_payload,
+                    "stream": stream,
+                }
+                if usage:
+                    assistant_data["usage"] = usage
+                session.append(
+                    "assistant/message",
+                    stage="agent",
+                    message=text or "(tool calls)",
+                    data=assistant_data,
+                    bus_data={
+                        "turn": turn,
+                        "step": step,
+                        "text": text,
+                        "reasoning": reasoning,
+                        "tool_calls": tool_calls,
+                        "usage": usage,
+                    },
+                    surface_op="append",
+                )
+                session.flush(phase="after_assistant", turn=turn, step=step)
+                self.flushes += 1
+
+                for call in tool_calls:
+                    name = call.get("name") or "unknown"
+                    args = call.get("args") or {}
+                    call_id = call.get("id") or f"call-{uuid.uuid4().hex[:8]}"
+                    if self.config.fault_mode == "tool_error" and not self._tool_fault_injected:
+                        self._tool_fault_injected = True
+                        self._announce_fault(bus, "tool", "已注入工具执行故障，用于观察 tool/result 错误回填")
+                    pipeline.execute(
+                        name=name,
+                        args=args,
+                        call_id=call_id,
+                        turn=turn,
+                        step=step,
                     )
-
-                tool_map = {item.name: item for item in tools}
-                model = self.model.bind_tools(tools)
-                seen_calls: dict[str, int] = {}
-
-                for step in range(1, self.config.max_steps + 1):
-                    messages, removed = context.compact(messages)
-                    if removed:
-                        bus.emit(
-                            "context_compacted",
-                            "agent",
-                            f"上下文压缩：省略 {removed} 条旧消息",
-                            removed=removed,
-                            estimated_tokens=DeepSeekContextManager.estimate_tokens(messages),
+                    if name == "update_plan":
+                        session.append(
+                            "todo/write",
+                            stage="tools",
+                            message="todo updated",
+                            data={
+                                "items": [item.model_dump() for item in plan_state.items],
+                                "summary": plan_state.summary,
+                            },
+                            bus_data={"items": [item.model_dump() for item in plan_state.items]},
                         )
-                    bus.emit("model_request", "agent", f"第 {step} 次模型推理", step=step)
-                    response = self._invoke_model(model, messages, bus, step=step)
-                    if response is None:
-                        final_answer = "运行失败：模型在有限重试后仍不可用。"
-                        break
 
-                    messages.append(response)
-                    reasoning = self._reasoning_text(response)
-                    if reasoning:
-                        bus.emit(
-                            "reasoning_content",
-                            "agent",
-                            reasoning,
-                            step=step,
-                            chars=len(reasoning),
-                        )
-                    text = message_text(response)
-                    if text:
-                        bus.emit("agent_message", "agent", text)
-                    usage = getattr(response, "usage_metadata", None) or {}
-                    if usage:
-                        bus.emit("token_usage", "agent", "token usage", **usage)
+                session.flush(phase="step_boundary", turn=turn, step=step)
+                self.flushes += 1
+                session.append(
+                    "step/end",
+                    stage="agent",
+                    message=f"step {step} ended",
+                    data={"turn": turn, "step": step},
+                    bus_data={"turn": turn, "step": step},
+                )
 
-                    self._save_checkpoint(
-                        run_dir, bus, step=step, phase="model",
-                        messages=messages, plan_state=plan_state, changes=changes, commands=commands,
-                    )
+                if not tool_calls:
+                    final_answer = text or "模型没有返回最终文本。"
+                    turn_end_reason = {"kind": "completed"}
+                    break
+            else:
+                turn_end_reason = {
+                    "kind": "error",
+                    "error": {
+                        "code": "DSH_MINI_MAX_STEPS",
+                        "message": f"reached max_steps={self.config.max_steps}",
+                    },
+                }
+                final_answer = "达到最大步骤数，尚未得到最终回答。"
 
-                    tool_calls = list(getattr(response, "tool_calls", None) or [])
-                    if not tool_calls:
-                        final_answer = text or "模型没有返回最终文本。"
-                        bus.emit("turn_completed", "agent", "模型完成本轮，无更多工具调用", step=step)
-                        break
-
-                    stopped = False
-                    for call in tool_calls:
-                        name = call.get("name") or "unknown"
-                        args = call.get("args") or {}
-                        call_id = call.get("id") or f"call-{uuid.uuid4().hex[:8]}"
-                        signature = name + ":" + json.dumps(args, ensure_ascii=False, sort_keys=True)
-                        seen_calls[signature] = seen_calls.get(signature, 0) + 1
-                        if seen_calls[signature] > 2:
-                            errors.append(f"repeated_tool_call:{name}")
-                            bus.emit("error", "agent", f"检测到重复工具调用：{name}")
-                            bus.emit(
-                                "failure_summary",
-                                "检测到重复工具调用，停止循环",
-                                component="model",
-                                strategy="stop_on_repeated_tool_call",
-                                tool=name,
-                            )
-                            final_answer = "停止：模型重复调用同一个工具，需要人工调整提示词或工具结果。"
-                            stopped = True
-                            break
-
-                        bus.emit("tool_started", "agent", "", tool=name, args=args, call_id=call_id)
-                        tool_started = time.perf_counter()
-                        try:
-                            if self.config.fault_mode == "tool_error" and not self._tool_fault_injected:
-                                self._tool_fault_injected = True
-                                self._announce_fault(bus, "tool", "已注入工具执行故障，用于观察 ToolMessage 回填")
-                                raise RuntimeError("simulated tool failure")
-                            target = tool_map.get(name)
-                            if target is None:
-                                output = f"ERROR: 未知工具 {name}"
-                                status = "error"
-                            else:
-                                output = target.invoke(args)
-                                status = "ok"
-                        except Exception as exc:
-                            output = f"ERROR: {type(exc).__name__}: {exc}"
-                            status = "error"
-                            errors.append(f"{name}: {exc}")
-                        elapsed_ms = (time.perf_counter() - tool_started) * 1000
-                        messages.append(
-                            ToolMessage(
-                                content=str(output),
-                                tool_call_id=call_id,
-                                name=name,
-                                status="success" if status == "ok" else "error",
-                            )
-                        )
-                        bus.emit(
-                            "tool_finished",
-                            "agent",
-                            str(output),
-                            tool=name,
-                            status=status,
-                            elapsed_ms=round(elapsed_ms, 2),
-                            call_id=call_id,
-                        )
-                        if status == "error":
-                            bus.emit(
-                                "fallback_applied",
-                                "agent",
-                                "工具错误已转成 ToolMessage，交回模型决定下一步",
-                                component="tool",
-                                strategy="return_tool_error_to_model",
-                                tool=name,
-                                call_id=call_id,
-                            )
-
-                    self._save_checkpoint(
-                        run_dir, bus, step=step, phase="tools",
-                        messages=messages, plan_state=plan_state, changes=changes, commands=commands,
-                    )
-                    if stopped:
-                        break
-                else:
-                    bus.emit(
-                        "limit_reached",
-                        "agent",
-                        "达到最大模型步数，返回部分结果",
-                        component="loop",
-                        strategy="stop_at_max_steps",
-                        max_steps=self.config.max_steps,
-                    )
-                    final_answer = "达到最大步骤数，尚未得到最终回答。"
+            session.append(
+                "turn/end",
+                stage="agent",
+                message=f"turn {turn} ended: {turn_end_reason.get('kind')}",
+                data={"turn": turn, "reason": turn_end_reason},
+                bus_data={"turn": turn, "reason": turn_end_reason},
+            )
 
             with bus.stage("verify", "检查测试或 lint 结果"):
                 if self.config.verify_command:
@@ -523,19 +630,10 @@ class DeepSeekHarness:
                         f"{self.config.verify_command} → {str(output)[:500]}",
                         returncode=existing.returncode if existing else None,
                     )
-                    if verification_passed is False:
-                        bus.emit(
-                            "failure_summary",
-                            "verify",
-                            "验证命令未通过，结果标记为失败",
-                            component="verify",
-                            strategy="mark_run_failed",
-                            returncode=existing.returncode if existing else None,
-                        )
                 else:
                     bus.emit("verification_skipped", "verify", "未配置 verify_command")
 
-            with bus.stage("finalize", "保存 session memory、变更、checkpoint 和摘要"):
+            with bus.stage("finalize", "保存 session memory、变更、会话日志和摘要"):
                 changed_files = changes.changed_files()
                 if changes.records:
                     (run_dir / "changes.diff").write_text(changes.diff_text(), encoding="utf-8")
@@ -552,7 +650,9 @@ class DeepSeekHarness:
                     f"- Task: {task}",
                     f"- Verification: {verification_passed if verification_passed is not None else 'not configured'}",
                     f"- Changed files: {', '.join(changed_files) if changed_files else '(none)'}",
-                    f"- Checkpoints: {self.checkpoints}",
+                    f"- Turns: 1",
+                    f"- Steps: {steps}",
+                    f"- Session flushes: {self.flushes}",
                     f"- Retries: {self.retries}",
                     "",
                     "## Plan",
@@ -570,7 +670,8 @@ class DeepSeekHarness:
                     "运行完成",
                     changed_files=changed_files,
                     verification_passed=verification_passed,
-                    checkpoints=self.checkpoints,
+                    session_path=str(session.path),
+                    flushes=self.flushes,
                     retries=self.retries,
                 )
         except Exception as exc:
@@ -586,6 +687,7 @@ class DeepSeekHarness:
             )
             final_answer = final_answer or f"运行失败：{exc}"
         finally:
+            session.close()
             bus.close()
 
         elapsed_ms = (time.perf_counter() - started) * 1000
@@ -598,9 +700,12 @@ class DeepSeekHarness:
             commands=commands,
             run_dir=run_dir,
             timeline_path=run_dir / "timeline.md",
+            session_path=session.path,
             success=success,
             elapsed_ms=elapsed_ms,
-            checkpoints=self.checkpoints,
+            turns=1,
+            steps=steps,
+            flushes=self.flushes,
             retries=self.retries,
             errors=errors,
         )

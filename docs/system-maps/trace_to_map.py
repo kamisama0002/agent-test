@@ -46,16 +46,23 @@ EVENT_TO_NODE: dict[str, dict[str, str]] = {
         "failure_summary": "finalize", "limit_reached": "finalize",
     },
     "deepseek_harness": {
-        "context_built": "context", "context_assembled": "context", "plan_created": "plan",
-        "reasoning_content": "model", "agent_message": "model", "token_usage": "model",
-        "tool_started": "tools", "tool_finished": "tools",
-        "checkpoint_saved": "events", "verification_completed": "verify",
-        "verification_skipped": "verify", "run_completed": "final",
-        "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions",
+        "context_built": "context", "run_started": "boot",
+        "turn/start": "model", "step/start": "model", "step/end": "model", "turn/end": "verify",
+        "user/message": "model", "request/header": "model", "agent/request": "model",
+        "assistant/message": "model", "assistant/attempt": "error",
+        "llm/retry": "error", "llm/retry-started": "error",
+        "tool/call": "tools", "tool/result": "tools",
+        "approval/policy": "error", "approval/asked": "error", "approval/decided": "error",
+        "session/flush": "events", "checkpoint_saved": "events",
+        "compaction/start": "events", "compaction/prune": "events",
+        "compaction/summary": "events", "compaction/end": "events",
+        "todo/write": "plan", "verification_completed": "verify", "verification_skipped": "verify",
+        "run_completed": "final", "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions",
         "mcp_tools_loaded": "extensions", "multi_agent_tools_loaded": "multi_agent",
         "fallback_applied": "error", "failure_summary": "error", "limit_reached": "error",
-        "retry_scheduled": "error", "retry_succeeded": "model", "fault_injected": "error",
+        "fault_injected": "error", "reasoning_content": "model",
     },
+
 }
 
 STAGE_TO_NODE: dict[str, dict[str, str]] = {

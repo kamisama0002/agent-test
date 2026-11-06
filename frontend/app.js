@@ -240,6 +240,7 @@ function renderExplanation(explanation) {
     ['system_design', '这套 Harness 的取舍'],
     ['next', '下一步'],
   ];
+  const sourceRefs = Array.isArray(explanation.source_refs) ? explanation.source_refs : [];
   return `
     <div class="explain-grid">
       ${rows.filter(([key]) => explanation[key]).map(([key, label]) => `
@@ -248,6 +249,12 @@ function renderExplanation(explanation) {
           <p>${esc(explanation[key])}</p>
         </section>
       `).join('')}
+      ${sourceRefs.length ? `
+        <section class="explain-item explain-source">
+          <div class="explain-label">源码依据</div>
+          <div class="source-ref-list">${sourceRefs.map(ref => `<code>${esc(ref)}</code>`).join('')}</div>
+        </section>
+      ` : ''}
     </div>
   `;
 }

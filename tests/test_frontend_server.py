@@ -51,13 +51,16 @@ def test_trace_adds_explanation_to_each_event() -> None:
     (run_dir / "events.jsonl").write_text(
         json.dumps(
             {
-                "type": "context_assembled",
+                "type": "assistant/message",
                 "stage": "agent",
-                "message": "context ready",
+                "message": "hello",
                 "data": {
-                    "message_count": 2,
-                    "context_snapshot": {"System Prompt": "hello"},
-                    "messages": [{"role": "system", "content": "hello"}],
+                    "turn": 1,
+                    "step": 1,
+                    "text": "hello",
+                    "reasoning": "",
+                    "tool_calls": [],
+                    "usage": {},
                 },
             },
             ensure_ascii=False,
@@ -68,7 +71,8 @@ def test_trace_adds_explanation_to_each_event() -> None:
     trace = session.trace("deepseek")
     assert trace["events"]
     event = trace["events"][0]
-    assert event["event"] == "context_assembled"
-    assert event["node"] == "context"
-    assert event["explanation"]["title"] == "装配模型消息"
+    assert event["event"] == "assistant/message"
+    assert event["node"] == "model"
+    assert event["explanation"]["title"] == "记录助手消息"
     assert event["explanation"]["design"]
+    assert event["explanation"]["source_refs"]

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 
-FaultMode = Literal["none", "tool_error", "planner_error", "plugin_error", "model_error"]
+FaultMode = Literal["none", "tool_error", "plugin_error", "model_error"]
 
 
 @dataclass
@@ -19,13 +19,17 @@ class DeepSeekHarnessConfig:
     workspace: Path
     max_steps: int = 10
     token_budget: int = 12000
+    compact_threshold: int = 10000
     command_timeout: int = 60
     verify_command: str | None = None
     trace_root: Path | None = None
     console: bool = True
     model_name: str | None = None
-    max_model_retries: int = 1
-    retry_delay_seconds: float = 0.5
+    reasoning_effort: str | None = None
+    max_model_retries: int = 5
+    retry_initial_delay_ms: int = 500
+    retry_max_delay_ms: int = 10000
+    retry_jitter_ratio: float = 0.1
     enable_multi_agent: bool = False
     enable_mcp: bool = False
     mcp_server_script: Path | None = None
@@ -41,8 +45,14 @@ class DeepSeekHarnessConfig:
             raise ValueError("max_steps 必须 >= 1")
         if self.token_budget < 1000:
             raise ValueError("token_budget 太小")
+        if self.compact_threshold > self.token_budget:
+            raise ValueError("compact_threshold 不能大于 token_budget")
         if self.max_model_retries < 0:
             raise ValueError("max_model_retries 不能为负数")
+        if self.retry_initial_delay_ms < 0 or self.retry_max_delay_ms < 0:
+            raise ValueError("retry delay 不能为负数")
+        if not 0 <= self.retry_jitter_ratio <= 1:
+            raise ValueError("retry_jitter_ratio 必须在 0 到 1 之间")
         if self.trace_root is None:
             self.trace_root = self.workspace / ".deepseek" / "runs"
         else:
@@ -55,5 +65,5 @@ class DeepSeekHarnessConfig:
                 raise ValueError(f"插件目录不存在：{plugin_dir}")
         if self.approval_mode not in {"auto", "ask", "deny"}:
             raise ValueError("approval_mode 只能是 auto / ask / deny")
-        if self.fault_mode not in {"none", "tool_error", "planner_error", "plugin_error", "model_error"}:
+        if self.fault_mode not in {"none", "tool_error", "plugin_error", "model_error"}:
             raise ValueError("fault_mode 不受支持")

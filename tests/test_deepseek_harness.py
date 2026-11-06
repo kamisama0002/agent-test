@@ -1,4 +1,4 @@
-"""DeepSeek Harness 的离线测试（不调用真实模型）。"""
+"""DeepSeek Harness 的离线测试（按官方 dsh 事件模型断言）。"""
 
 from __future__ import annotations
 
@@ -11,23 +11,6 @@ from langchain_core.messages import AIMessage
 from deepseek_harness.config import DeepSeekHarnessConfig
 from deepseek_harness.context import DeepSeekContextManager
 from deepseek_harness.harness import DeepSeekHarness
-from mini_codex.state import Plan, PlanItem
-
-
-class FakePlanner:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def invoke(self, messages: list[Any]) -> Plan:
-        self.calls += 1
-        return Plan(
-            summary="检查、修复、验证",
-            items=[
-                PlanItem(title="读取相关文件"),
-                PlanItem(title="修复 bug"),
-                PlanItem(title="运行测试"),
-            ],
-        )
 
 
 class FakeModel:
@@ -58,6 +41,14 @@ def _events(run_dir: Path) -> list[dict]:
     ]
 
 
+def _session_events(run_dir: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in (run_dir / "session.v1.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def test_deepseek_context_snapshot_and_secret_boundary(tmp_path: Path) -> None:
     (tmp_path / "DEEPSEEK.md").write_text("先读测试，再修改。", encoding="utf-8")
     (tmp_path / ".env").write_text("SECRET_SHOULD_NOT_APPEAR", encoding="utf-8")
@@ -68,7 +59,7 @@ def test_deepseek_context_snapshot_and_secret_boundary(tmp_path: Path) -> None:
     assert snapshot["Model"] == "deepseek-test"
 
 
-def test_deepseek_loop_records_reasoning_context_and_checkpoint(tmp_path: Path) -> None:
+def test_deepseek_turn_step_session_and_tool_pipeline(tmp_path: Path) -> None:
     (tmp_path / "notes.txt").write_text("hello", encoding="utf-8")
     first = AIMessage(
         content="",
@@ -82,77 +73,72 @@ def test_deepseek_loop_records_reasoning_context_and_checkpoint(tmp_path: Path) 
         console=False,
         max_model_retries=0,
     )
-    result = DeepSeekHarness(
-        config,
-        model=FakeModel([first, second]),
-        planner=FakePlanner(),
-    ).run("读取 notes.txt 并总结")
+    result = DeepSeekHarness(config, model=FakeModel([first, second])).run("读取 notes.txt 并总结")
     events = _events(result.run_dir)
     event_types = [item["type"] for item in events]
+    session_types = [item["type"] for item in _session_events(result.run_dir)]
 
     assert result.final_answer == "文件内容是 hello。"
-    assert result.checkpoints >= 2
-    assert "context_built" in event_types
-    assert "context_assembled" in event_types
-    assert "reasoning_content" in event_types
-    assert "checkpoint_saved" in event_types
-    context_event = next(item for item in events if item["type"] == "context_assembled")
-    assert "System Prompt" in context_event["data"]["context_snapshot"]
-    assert context_event["data"]["messages"]
+    assert result.steps == 2
+    assert result.flushes >= 4
+    for expected in [
+        "turn/start", "step/start", "user/message", "request/header",
+        "assistant/message", "tool/call", "tool/result", "step/end", "turn/end",
+    ]:
+        assert expected in session_types
+    assert "agent/request" in event_types
+    assert "session/flush" in event_types
+    assistant = next(item for item in _session_events(result.run_dir) if item["type"] == "assistant/message")
+    blocks = assistant["data"]["message"]["content"]
+    assert any(block.get("type") == "reasoning" for block in blocks)
+    tool_result = next(item for item in _session_events(result.run_dir) if item["type"] == "tool/result")
+    assert tool_result["surfaceOp"] == "append"
 
 
-def test_deepseek_tool_error_is_returned_to_model(tmp_path: Path) -> None:
+def test_deepseek_tool_error_is_recorded_as_tool_result(tmp_path: Path) -> None:
     first = AIMessage(
         content="",
         tool_calls=[{"name": "missing_tool", "args": {}, "id": "bad-call"}],
     )
     second = AIMessage(content="工具不可用，但已经安全结束。")
     config = DeepSeekHarnessConfig(workspace=tmp_path, max_steps=3, console=False, max_model_retries=0)
-    result = DeepSeekHarness(
-        config,
-        model=FakeModel([first, second]),
-        planner=FakePlanner(),
-    ).run("测试工具失败")
-    events = _events(result.run_dir)
-    fallbacks = [item for item in events if item["type"] == "fallback_applied"]
-    assert fallbacks
-    assert fallbacks[0]["data"]["strategy"] == "return_tool_error_to_model"
+    result = DeepSeekHarness(config, model=FakeModel([first, second])).run("测试工具失败")
+    results = [item for item in _session_events(result.run_dir) if item["type"] == "tool/result"]
+    assert results
+    assert results[0]["data"]["isError"] is True
+    assert results[0]["data"]["error"]["code"] == "UNKNOWN_TOOL"
     assert result.final_answer == "工具不可用，但已经安全结束。"
 
 
-def test_deepseek_fault_injection_uses_planner_fallback(tmp_path: Path) -> None:
-    config = DeepSeekHarnessConfig(
-        workspace=tmp_path,
-        max_steps=2,
-        console=False,
-        max_model_retries=0,
-        fault_mode="planner_error",
-    )
-    result = DeepSeekHarness(
-        config,
-        model=FakeModel([AIMessage(content="默认计划已接管。")]),
-        planner=FakePlanner(),
-    ).run("测试规划故障")
-    events = _events(result.run_dir)
-    assert any(item["type"] == "fault_injected" for item in events)
-    assert any(
-        item["type"] == "fallback_applied" and item["data"].get("strategy") == "use_default_plan"
-        for item in events
-    )
-
-
-def test_deepseek_model_retry_is_visible(tmp_path: Path) -> None:
+def test_deepseek_model_retry_uses_llm_retry_events(tmp_path: Path) -> None:
     config = DeepSeekHarnessConfig(
         workspace=tmp_path,
         max_steps=3,
         console=False,
         max_model_retries=1,
-        retry_delay_seconds=0,
+        retry_initial_delay_ms=0,
+        retry_jitter_ratio=0,
     )
     model = FakeModel([RuntimeError("temporary"), AIMessage(content="重试成功。")])
-    result = DeepSeekHarness(config, model=model, planner=FakePlanner()).run("测试重试")
-    event_types = [item["type"] for item in _events(result.run_dir)]
-    assert "retry_scheduled" in event_types
-    assert "retry_succeeded" in event_types
+    result = DeepSeekHarness(config, model=model).run("测试重试")
+    event_types = [item["type"] for item in _session_events(result.run_dir)]
+    assert "llm/retry" in event_types
+    assert "llm/retry-started" in event_types
     assert result.retries == 1
     assert result.final_answer == "重试成功。"
+
+
+def test_deepseek_model_failure_closes_turn_with_error(tmp_path: Path) -> None:
+    config = DeepSeekHarnessConfig(
+        workspace=tmp_path,
+        max_steps=2,
+        console=False,
+        max_model_retries=0,
+        fault_mode="model_error",
+    )
+    result = DeepSeekHarness(config, model=FakeModel([AIMessage(content="never used")])).run("测试模型失败")
+    session_events = _session_events(result.run_dir)
+    assert any(item["type"] == "assistant/attempt" for item in session_events)
+    end = next(item for item in reversed(session_events) if item["type"] == "turn/end")
+    assert end["data"]["reason"]["kind"] == "error"
+    assert result.success is False

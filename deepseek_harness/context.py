@@ -106,8 +106,10 @@ class DeepSeekContextManager:
             return ""
         return self.session_memory_path.read_text(encoding="utf-8", errors="replace")[:12000]
 
-    def initial_messages(self, task: str, plan_text: str) -> list[BaseMessage]:
-        context = f"""# 仓库规则（DEEPSEEK.md / AGENTS.md）
+    def system_context(self, plan_text: str = "") -> str:
+        return f"""
+
+# 仓库规则（DEEPSEEK.md / AGENTS.md）
 {self.project_instructions or "(未找到项目规则文件)"}
 
 # Session Memory
@@ -117,11 +119,12 @@ class DeepSeekContextManager:
 {self.environment}
 
 # Current Plan
-{plan_text or "(尚未生成)"}
+{plan_text or "(尚未生成；使用 update_plan 工具维护)"}
 """
+
+    def initial_messages(self, task: str, plan_text: str) -> list[BaseMessage]:
         return [
-            SystemMessage(content=BASE_SYSTEM_PROMPT),
-            HumanMessage(content=context),
+            SystemMessage(content=BASE_SYSTEM_PROMPT + self.system_context(plan_text)),
             HumanMessage(content=f"# User Task\n{task}"),
         ]
 

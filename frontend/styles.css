@@ -217,6 +217,9 @@ body:not([data-system="deepseek"]) .deepseek-only { display: none; }
 .explain-item.explain-design { border-left-color: #8b5cf6; }
 .explain-item.explain-system_design { border-left-color: #ec4899; }
 .explain-item.explain-next { border-left-color: #0891b2; }
+.explain-item.explain-source { border-left-color: #475569; }
+.source-ref-list { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.source-ref-list code { color: #334155; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px 5px; font: 8.5px/1.4 "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
 .explain-label { color: var(--text); font-size: 9px; font-weight: 800; letter-spacing: .02em; }
 .explain-item p { margin: 3px 0 0; color: var(--text-2); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
 .context-drawer { margin-top: 9px; border: 1px solid #d9e7f4; border-radius: 8px; background: #fbfdff; overflow: hidden; }

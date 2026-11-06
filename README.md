@@ -7,9 +7,11 @@
 3. **Mini Codex**：用 LangChain 复刻 Codex 的开发 Agent Harness，包含上下文、规划、工具循环、验证和事件可视化。
 4. **Claude-style Harness**：用 LangGraph 复刻 Claude Code 的 `queryLoop`、`CLAUDE.md`、权限模式、TodoWrite、上下文压缩、子 Agent 和 MCP。
 5. **Hermes mini**：通用 Agent Harness，复刻 `MEMORY.md` / `USER.md`、`SKILL.md`、后台复盘、curator、session_search 和 toolset。
-6. **DeepSeek Harness**：面向推理模型的编码 Harness，突出 `reasoning_content`、有限重试、checkpoint、session memory 和故障降级。
+6. **DeepSeek Harness**：按 dsh 的 session event、agent-loop、tool-calls、llm-retry 和 compaction 语义实现的编码 Harness。
 
-所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 `deepseek-v4.1-flash`。
+所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 deepseek-v4.1-flash。
+
+四套 Harness 的上游 commit、源码符号、本项目实现位置和简化边界见 [源码溯源与复刻边界](docs/source-provenance.md)。
 
 > 第一次学习？先看 [从零开始：Agent 学习与项目使用指南](docs/beginner-guide.md)，按环境准备、基础案例、三套 Harness、实时图的顺序走。
 
@@ -49,7 +51,7 @@ uv run python -m hermes_harness `
   --task "阅读 research.md，提炼三条结论；以后请先给结论再给依据。" `
   --toolsets hermes
 
-# DeepSeek Harness：推理内容 + 重试 + checkpoint
+# DeepSeek Harness：session event + 工具流水线 + 重试
 Copy-Item examples/deepseek_harness_demo $env:TEMP/deepseek_harness_demo -Recurse -Force
 uv run python -m deepseek_harness --workspace $env:TEMP/deepseek_harness_demo `
   --task "修复 calculator.py 中 add 的 bug，运行测试并总结" `
@@ -216,19 +218,24 @@ uv run python -m hermes_harness `
 
 ## DeepSeek Harness
 
-DeepSeek 版重点展示推理模型开发 Agent 的差异：
+DeepSeek 版按官方 `deepseek-harness` 的事件模型重建：
 
 ```text
-bootstrap → context(DEEPSEEK.md/session) → plan → model(reasoning + tools)
-          → checkpoint ↔ tools → verify → finalize(session memory)
+context → turn/start → step/start → user/message → request/header
+        → session/flush → agent/request → assistant/message
+        → tool/call → approval/* → tool/result → step/end → turn/end
+        → verify → finalize
 ```
 
-- `reasoning_content` 与最终正文分栏记录；
-- 模型调用有限重试 + 退避，并产生 `retry_scheduled / retry_succeeded`；
-- 模型后、工具后都写 `checkpoint.json`；
-- 工具错误作为 `ToolMessage` 回填，插件/MCP 失败降级继续；
-- 重复工具调用、最大步数和模型最终失败都有明确断路器；\n- Web 前端内置故障演练（工具 / 规划 / 插件 / 模型），可以直接观察恢复路径；
-- 复用同一套插件、MCP、多 Agent 和审批边界。
+- `session.v1.jsonl` 是 append-only 事件唯一真源，模型消息从事件派生；
+- `reasoning` 作为 assistant content block 保存，与正文分离；
+- 模型失败使用 `llm/retry + llm/retry-started`，重试属于同一打开的 step；
+- 模型请求前、工具正文前、step 边界执行 `session/flush` 检查点；
+- 工具调用先记录 `tool/call`，错误也形成 `tool/result.isError`；
+- 上下文压缩使用 `compaction/start → prune → summary → end`；
+- 插件/MCP 失败降级继续，最大步数和模型最终失败有明确 `turn/end` 原因；
+- Web 前端内置故障演练（工具 / 插件 / 模型），可以直接观察恢复路径；
+- 完整源码映射见 [docs/source-provenance.md](docs/source-provenance.md)。
 
 README：[deepseek_harness/README.md](deepseek_harness/README.md)
 Notebook：[DeepSeekHarness.ipynb](DeepSeekHarness.ipynb)
@@ -240,7 +247,7 @@ Notebook：[DeepSeekHarness.ipynb](DeepSeekHarness.ipynb)
 - [Mini Codex：run_turn 工具循环](docs/system-maps/mini-codex.html)
 - [Claude-style：LangGraph queryLoop](docs/system-maps/claude-harness.html)
 - [Hermes mini：记忆、技能与后台复盘](docs/system-maps/hermes-harness.html)
-- [DeepSeek Harness：推理、重试与 checkpoint](docs/system-maps/deepseek-harness.html)
+- [DeepSeek Harness：session、工具流水线与重试](docs/system-maps/deepseek-harness.html)
 - [Support Project：五框架对照](docs/system-maps/support-project.html)
 - [图的说明与实时事件映射](docs/system-maps/README.md)
 

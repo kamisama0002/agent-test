@@ -48,10 +48,10 @@ def test_new_runtime_events_map_to_extension_nodes() -> None:
     assert module.map_event("hermes_harness", {"type": "approval_decision"})["node"] == "approval"
 
 
-def test_deepseek_reasoning_checkpoint_and_recovery_nodes() -> None:
+def test_deepseek_source_event_mapping() -> None:
     module = _load_trace_module()
-    assert module.map_event("deepseek_harness", {"type": "reasoning_content", "stage": "agent"})["node"] == "model"
-    assert module.map_event("deepseek_harness", {"type": "checkpoint_saved", "stage": "agent"})["node"] == "events"
-    assert module.map_event("deepseek_harness", {"type": "retry_scheduled", "stage": "agent"})["node"] == "error"
-    assert module.map_event("deepseek_harness", {"type": "fault_injected", "stage": "agent"})["node"] == "error"
-    assert module.map_event("deepseek_harness", {"type": "context_assembled", "stage": "agent"})["node"] == "context"
+    assert module.map_event("deepseek_harness", {"type": "assistant/message", "stage": "agent"})["node"] == "model"
+    assert module.map_event("deepseek_harness", {"type": "tool/call", "stage": "tools"})["node"] == "tools"
+    assert module.map_event("deepseek_harness", {"type": "session/flush", "stage": "agent"})["node"] == "events"
+    assert module.map_event("deepseek_harness", {"type": "llm/retry", "stage": "agent"})["node"] == "error"
+    assert module.map_event("deepseek_harness", {"type": "context_built", "stage": "agent"})["node"] == "context"

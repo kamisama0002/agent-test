@@ -3,7 +3,7 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "DeepSeek Harness：推理、工具与恢复流",
-    "subtitle": "对应 deepseek_harness/harness.py::DeepSeekHarness.run；含 reasoning、retry、checkpoint 与失败降级",
+    "subtitle": "对应 deepseek_harness/{session,tool_pipeline,harness}.py；直接映射 dsh 的 SessionEventMap、agent-loop、tool-calls、llm-retry、compaction 与 session-checkpoint-policy",
     "locale": "zh-CN",
     "output": "docs/system-maps/deepseek-harness.html",
     "visual_preset": "signal-flow",
@@ -164,21 +164,21 @@
       "lane": "entry",
       "col": 2,
       "type": "database",
-      "label": "Context",
-      "sublabel": "DEEPSEEK.md + memory",
+      "label": "Context + Prompt",
+      "sublabel": "DEEPSEEK.md + memory + env",
       "width": 140,
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 264,
-          "end_line": 277,
+          "line": 328,
+          "end_line": 356,
           "label": "context stage"
         },
         {
           "path": "deepseek_harness/context.py",
           "line": 94,
-          "end_line": 146,
-          "label": "上下文与快照"
+          "end_line": 160,
+          "label": "上下文与 system prompt"
         }
       ],
       "tag": "context layers"
@@ -188,21 +188,21 @@
       "lane": "entry",
       "col": 3,
       "type": "backend",
-      "label": "Plan",
-      "sublabel": "3–6 steps + fallback",
+      "label": "Session Surface",
+      "sublabel": "turn/step event log",
       "width": 140,
       "sources": [
         {
-          "path": "deepseek_harness/harness.py",
-          "line": 196,
-          "end_line": 242,
-          "label": "规划与降级"
+          "path": "deepseek_harness/session.py",
+          "line": 82,
+          "end_line": 194,
+          "label": "append-only session"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 278,
-          "end_line": 282,
-          "label": "plan stage"
+          "line": 306,
+          "end_line": 438,
+          "label": "turn/step 生命周期"
         }
       ],
       "tag": "PlanState"
@@ -212,15 +212,21 @@
       "lane": "loop",
       "col": 2,
       "type": "backend",
-      "label": "Tool Setup",
-      "sublabel": "plugins · MCP · agents",
+      "label": "Tool Pipeline Setup",
+      "sublabel": "approval · plugins · MCP",
       "width": 140,
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 283,
-          "end_line": 379,
+          "line": 360,
+          "end_line": 420,
           "label": "工具与扩展装配"
+        },
+        {
+          "path": "deepseek_harness/tool_pipeline.py",
+          "line": 30,
+          "end_line": 164,
+          "label": "tool/call → result"
         }
       ],
       "tag": "shared runtime"
@@ -230,21 +236,21 @@
       "lane": "loop",
       "col": 3,
       "type": "cloud",
-      "label": "DeepSeek Model",
-      "sublabel": "reasoning + tools",
+      "label": "DeepSeek Request",
+      "sublabel": "retry + assistant/message",
       "width": 140,
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 107,
-          "end_line": 158,
-          "label": "有限重试 + 模型调用"
+          "line": 151,
+          "end_line": 214,
+          "label": "llm/retry + 模型调用"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 380,
-          "end_line": 411,
-          "label": "reasoning / answer / usage"
+          "line": 446,
+          "end_line": 550,
+          "label": "request/header 与 assistant/message"
         }
       ],
       "tag": "reasoning",
@@ -255,15 +261,15 @@
       "lane": "loop",
       "col": 4,
       "type": "messagebus",
-      "label": "Tool Calls",
-      "sublabel": "observe → retry",
+      "label": "Tool Pipeline",
+      "sublabel": "call → approval → result",
       "width": 140,
       "sources": [
         {
-          "path": "deepseek_harness/harness.py",
-          "line": 412,
-          "end_line": 489,
-          "label": "工具循环与错误回填"
+          "path": "deepseek_harness/tool_pipeline.py",
+          "line": 30,
+          "end_line": 164,
+          "label": "工具调用流水线"
         }
       ],
       "tag": "approval boundary",
@@ -292,21 +298,21 @@
       "lane": "evidence",
       "col": 2,
       "type": "database",
-      "label": "EventBus",
-      "sublabel": "events + checkpoint",
+      "label": "Session Event Log",
+      "sublabel": "session.v1 + events + flush",
       "width": 140,
       "sources": [
         {
-          "path": "mini_codex/events.py",
-          "line": 38,
-          "end_line": 92,
-          "label": "事件总线"
+          "path": "deepseek_harness/session.py",
+          "line": 82,
+          "end_line": 194,
+          "label": "会话事件与派生消息"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 161,
-          "end_line": 191,
-          "label": "checkpoint 写入"
+          "line": 216,
+          "end_line": 304,
+          "label": "compaction 事务"
         }
       ],
       "tag": "可回放",
@@ -342,8 +348,8 @@
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 505,
-          "end_line": 536,
+          "line": 620,
+          "end_line": 646,
           "label": "验证阶段"
         }
       ],
@@ -355,15 +361,15 @@
       "lane": "exit",
       "col": 5,
       "type": "backend",
-      "label": "Finalize",
+      "label": "turn/end + Finalize",
       "sublabel": "summary + memory",
       "width": 140,
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 538,
-          "end_line": 574,
-          "label": "finalize"
+          "line": 605,
+          "end_line": 690,
+          "label": "turn/end 与 finalize"
         }
       ],
       "tag": "产物",
@@ -374,21 +380,21 @@
       "lane": "exit",
       "col": 3,
       "type": "security",
-      "label": "Recovery",
+      "label": "Retry / Turn Error",
       "sublabel": "retry / fallback",
       "width": 140,
       "sources": [
         {
           "path": "deepseek_harness/harness.py",
-          "line": 107,
-          "end_line": 158,
-          "label": "模型重试与终止"
+          "line": 151,
+          "end_line": 214,
+          "label": "llm/retry 与失败尝试"
         },
         {
           "path": "deepseek_harness/harness.py",
-          "line": 578,
-          "end_line": 598,
-          "label": "外层异常"
+          "line": 605,
+          "end_line": 618,
+          "label": "turn/end error"
         }
       ],
       "tag": "recovery",
@@ -532,29 +538,29 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "推理与正文分离",
+      "title": "事件唯一真源",
       "items": [
-        "reasoning_content 单独事件展示",
-        "最终答案仍然只来自 assistant 正文",
-        "工具调用决定下一步路由"
+        "session.v1.jsonl 是权威 append-only 日志",
+        "模型消息从 session event 派生",
+        "events.jsonl 是可视化镜像"
       ]
     },
     {
       "dot": "amber",
-      "title": "有限恢复",
+      "title": "工具执行顺序",
       "items": [
-        "模型失败最多重试 max_model_retries",
-        "工具错误回填为 ToolMessage",
-        "重复调用和最大步数是断路器"
+        "tool/call 先记录再审批/执行",
+        "tool/result 通过 callId 回填",
+        "异常也变成 isError result"
       ]
     },
     {
       "dot": "violet",
-      "title": "共享边界",
+      "title": "生命周保障",
       "items": [
-        "插件、MCP、多 Agent 进入同一个 Tool 池",
-        "审批与 workspace 限制沿用共享实现",
-        "checkpoint 记录模型/工具后的状态"
+        "turn/step + llm/retry 事件",
+        "session flush 检查点",
+        "compaction start/prune/summary/end"
       ]
     }
   ]
