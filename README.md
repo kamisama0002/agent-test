@@ -13,6 +13,8 @@
 
 四套 Harness 的上游 commit、源码符号、本项目实现位置和简化边界见 [源码溯源与复刻边界](docs/source-provenance.md)。
 
+Sandbox 只做日志模拟、不真正启停：[Sandbox 启动日志模拟](docs/sandbox-simulation.md)。
+
 > 第一次学习？先看 [从零开始：Agent 学习与项目使用指南](docs/beginner-guide.md)，按环境准备、基础案例、三套 Harness、实时图的顺序走。
 
 ## 快速开始

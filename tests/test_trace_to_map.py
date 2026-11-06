@@ -55,3 +55,4 @@ def test_deepseek_source_event_mapping() -> None:
     assert module.map_event("deepseek_harness", {"type": "session/flush", "stage": "agent"})["node"] == "events"
     assert module.map_event("deepseek_harness", {"type": "llm/retry", "stage": "agent"})["node"] == "error"
     assert module.map_event("deepseek_harness", {"type": "context_built", "stage": "agent"})["node"] == "context"
+    assert module.map_event("deepseek_harness", {"type": "sandbox/started", "stage": "sandbox"})["node"] == "extensions"

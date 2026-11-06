@@ -26,6 +26,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.approval import ApprovalManager
+from agent_runtime.sandbox_sim import SandboxSimulator, sandbox_mode_for_approval
 from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
 from .config import HarnessConfig
@@ -113,6 +114,7 @@ class MiniCodexHarness:
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         run_dir = (self.config.trace_root or self.config.workspace / ".mini_codex" / "runs") / run_id
         bus = EventBus(run_dir, console=self.config.console)
+        sandbox = SandboxSimulator("codex", mode=sandbox_mode_for_approval(self.config.approval_mode))
         errors: list[str] = []
         plan_state = PlanState()
         changes = ChangeTracker()
@@ -128,6 +130,11 @@ class MiniCodexHarness:
                 if not self.config.workspace.exists():
                     raise FileNotFoundError(self.config.workspace)
                 bus.emit("workspace_ready", "bootstrap", str(self.config.workspace))
+                sandbox.start(
+                    bus,
+                    workspace=self.config.workspace,
+                    approval_mode=self.config.approval_mode,
+                )
 
             with bus.stage("context", "加载 AGENTS.md、环境上下文和 token 预算"):
                 context = ContextManager(self.config.workspace, self.config.token_budget)
@@ -425,6 +432,7 @@ class MiniCodexHarness:
             bus.emit("error", "harness", f"运行失败：{exc}")
             final_answer = final_answer or f"运行失败：{exc}"
         finally:
+            sandbox.stop(bus, reason="codex_run_finished")
             bus.close()
 
         elapsed_ms = (time.perf_counter() - started) * 1000

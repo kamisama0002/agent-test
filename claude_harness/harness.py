@@ -21,6 +21,7 @@ from langgraph.graph import END, START, StateGraph
 
 from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.observability import serialize_messages
+from agent_runtime.sandbox_sim import SandboxSimulator, sandbox_mode_for_permission
 from agent_runtime.plugins import PluginRegistry
 from .config import ClaudeHarnessConfig
 from .context import ClaudeContextManager
@@ -69,6 +70,16 @@ class ClaudeHarness:
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         run_dir = (self.config.trace_root or self.config.workspace / ".claude" / "runs") / run_id
         bus = EventBus(run_dir, console=self.config.console)
+        sandbox = SandboxSimulator(
+            "claude",
+            mode=sandbox_mode_for_permission(self.config.permission_mode),
+        )
+        sandbox.start(
+            bus,
+            workspace=self.config.workspace,
+            approval_mode=self.config.permission_mode,
+            network_access=self.config.permission_mode == "bypassPermissions",
+        )
         context = ClaudeContextManager(
             self.config.workspace,
             token_budget=self.config.token_budget,
@@ -502,6 +513,7 @@ class ClaudeHarness:
             bus.emit("error", "harness", f"运行失败：{exc}")
             final = f"运行失败：{exc}"
         finally:
+            sandbox.stop(bus, reason="claude_run_finished")
             bus.close()
 
         if changes.records:

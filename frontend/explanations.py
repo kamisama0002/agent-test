@@ -279,6 +279,15 @@ EVENT_GUIDES.update({
 })
 
 DESIGN_NOTES: dict[str, str] = {
+    "sandbox/requested": "沙箱策略必须在任何外部副作用之前确定，否则工具已经执行后再补边界没有意义。",
+    "sandbox/backend_selected": "把平台差异封装在 backend seam 后面，上层循环无需知道 Windows ACL、Linux landlock 或容器实现。",
+    "sandbox/policy_applied": "策略事件把 mode、writable roots、network 和 approval 放在同一份可回放记录里，便于审计和故障定位。",
+    "sandbox/mounts_prepared": "先建立路径映射再启动工具，才能保证所有文件访问都经过同一套边界。",
+    "sandbox/started": "启动事件是生命周期检查点；真实实现会在此之后才允许执行受限命令。",
+    "sandbox/exec_wrapped": "命令包装是 sandbox 真正生效的位置；只记录启动但不记录包装，就无法解释某条命令为什么被拒绝。",
+    "sandbox/stop_requested": "资源释放和普通执行一样需要可观察的开始/结束，避免泄漏和半关闭状态。",
+    "sandbox/stopped": "停止事件让运行结束后的资源状态可验证；教学版明确 simulated，避免误认为真的启动了进程。",
+    "sandbox/mode": "把 sandbox mode 写入 session，下一次请求无需依赖进程内变量就能重建相同的安全策略。",
     "turn/start": "turn 是持久生命周期的容器，step 是真正可重试的模型请求边界；把两者分开，错误恢复、取消和 token 统计才有稳定坐标。",
     "turn/end": "显式结束原因使恢复逻辑能区分正常完成、模型错误、上下文溢出和中止，而不是靠最后一个消息猜测。",
     "step/start": "一个 step 只对应一次模型请求及其工具调用，重试时可以完整重跑同一 step，而不会把多个请求混在一起。",
@@ -343,8 +352,21 @@ SYSTEM_NOTES: dict[str, str] = {
 }
 
 
+EVENT_GUIDES.update({
+    "sandbox/requested": {"title": "请求启用 Sandbox", "why": "在模型请求或工具副作用之前先确定沙箱策略，避免先执行再补安全边界。", "next": "选择可用 backend 并应用策略。"},
+    "sandbox/backend_selected": {"title": "选择 Sandbox Backend", "why": "不同平台可用的隔离技术不同，必须先选择 backend 或明确失败。", "next": "应用文件/网络/命令策略。"},
+    "sandbox/policy_applied": {"title": "应用 Sandbox 策略", "why": "把 sandbox mode、writable roots、network access 和审批模式变成可审计配置。", "next": "准备 workspace 挂载并记录启动完成。"},
+    "sandbox/mounts_prepared": {"title": "准备 Sandbox 挂载", "why": "只把允许的 workspace 路径映射进沙箱，文件边界从这里开始生效。", "next": "记录 sandbox started。"},
+    "sandbox/started": {"title": "Sandbox 模拟启动完成", "why": "本教学版只记录启动阶段，不真正创建容器或进程，但事件形状与真实生命周期一致。", "next": "后续工具命令应经过 sandbox 包装。"},
+    "sandbox/exec_wrapped": {"title": "包装 Sandbox 命令", "why": "命令在执行前被 sandbox runner 包装，才能应用文件、网络和进程限制。", "next": "执行被包装的命令或记录 sandbox denial。"},
+    "sandbox/stop_requested": {"title": "请求停止 Sandbox", "why": "停止也需要显式事件，确保资源释放和失败路径可回放。", "next": "记录 sandbox stopped。"},
+    "sandbox/stopped": {"title": "Sandbox 已停止", "why": "结束事件关闭 sandbox 生命周期；教学版不会真正停止任何容器或进程。", "next": "结束本次运行。"},
+    "sandbox/mode": {"title": "记录 Sandbox 模式", "why": "session 中的 sandbox/mode 事件让后续请求可以从日志重建安全策略。", "next": "模型和工具按该模式运行。"},
+})
+
 SOURCE_REFERENCES: dict[str, dict[str, list[str]]] = {
     "codex": {
+        "sandbox/started": ["codex-rs/protocol/src/protocol.rs::SandboxPolicy", "codex-rs/core/src/sandboxing/"],
         "run_started": ["codex-rs/core/src/session/turn.rs::run_turn"],
         "context_built": ["codex-rs/core/src/agents_md.rs", "codex-rs/core/src/session/turn_context.rs::TurnContext"],
         "plan_created": ["codex-rs/core/src/tools/handlers/plan.rs", "codex-rs/protocol/src/plan_tool.rs"],
@@ -355,6 +377,7 @@ SOURCE_REFERENCES: dict[str, dict[str, list[str]]] = {
         "multi_agent_tools_loaded": ["codex-rs/core/src/agent/control/"],
     },
     "claude": {
+        "sandbox/started": ["restored-src/src/utils/sandbox/sandbox-adapter.ts::SandboxManager", "restored-src/src/entrypoints/sandboxTypes.ts"],
         "context_prepared": ["restored-src/src/utils/claudemd.ts"],
         "todo_created": ["restored-src/src/tools/", "Claude Code TodoWrite"],
         "model_request": ["restored-src/src/query.ts::queryLoop"],
@@ -366,6 +389,7 @@ SOURCE_REFERENCES: dict[str, dict[str, list[str]]] = {
         "mcp_tools_loaded": ["Claude Code MCP service"],
     },
     "hermes": {
+        "sandbox/started": ["tools/environments/", "toolsets.py"],
         "context_prepared": ["agent/memory_context.py", "toolsets.py"],
         "memory_changed": ["tools/memory_tool_store.py::MemoryStore", "agent/memory_context.py"],
         "skill_viewed": ["tools/skills_tool.py", "tools/skill_manager_tool.py"],
@@ -375,6 +399,7 @@ SOURCE_REFERENCES: dict[str, dict[str, list[str]]] = {
         "toolsets_resolved": ["toolsets.py"],
     },
     "deepseek": {
+        "sandbox/started": ["packages/sandbox/sandbox/src/index.ts::SandboxPolicy", "packages/sandbox/sandbox-local/src/index.ts", "packages/sandbox/sandbox-windows-acl/src/index.ts"],
         "run_started": ["packages/core/agent-loop/src/agent.ts::ReactLoopAgent.turn"],
         "context_built": ["packages/core/agent-loop/src/agent.ts::step", "packages/core/session/src/index.ts::deriveMessages"],
         "turn/start": ["packages/core/agent-loop/src/agent.ts::turn", "packages/core/session/src/types.ts::SessionEventMap"],
@@ -601,6 +626,13 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         input_text = f"compactionId={data.get('compactionId', '?')}，turn={data.get('turn', '?')}"
         output_text = message or "压缩事务状态已更新"
         next_text = "完成后从压缩后的 session surface 派生下一次请求。"
+    elif event_type.startswith("sandbox/"):
+        input_text = (
+            f"mode={data.get('mode', '-')}，backend={data.get('backend', '-')}，"
+            f"writable_roots={data.get('writable_roots', data.get('writableRoots', []))}"
+        )
+        output_text = message or "sandbox 生命周期状态已更新"
+        next_text = "继续 sandbox 生命周期或进入工具执行。"
     elif event_type == "context_compacted":
         input_text = f"压缩方法：{data.get('method', data.get('removed', '?'))}"
         output_text = (f"before_tokens={data.get('before_tokens', '?')}，"

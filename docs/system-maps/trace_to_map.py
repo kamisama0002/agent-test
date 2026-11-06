@@ -109,6 +109,8 @@ def map_event(system: str, event: dict[str, Any]) -> dict[str, Any]:
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
     event_type = str(event.get("type") or "")
     node = EVENT_TO_NODE.get(system, {}).get(event_type, mapping.get(stage, "unknown"))
+    if event_type.startswith("sandbox/"):
+        node = "extensions"
     return {
         "system": system,
         "stage": stage,

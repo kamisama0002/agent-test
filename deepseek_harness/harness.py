@@ -39,6 +39,7 @@ from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.approval import ApprovalManager
 from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
+from agent_runtime.sandbox_sim import SandboxSimulator, sandbox_mode_for_approval
 from mini_codex.events import EventBus
 from mini_codex.multi_agent import READ_ONLY_TOOL_NAMES, build_codex_agent_tools
 from mini_codex.state import ChangeTracker, CommandRecord, PlanState
@@ -309,6 +310,7 @@ class DeepSeekHarness:
         run_dir = (self.config.trace_root or self.config.workspace / ".deepseek" / "runs") / run_id
         bus = EventBus(run_dir, console=self.config.console)
         session = DeepSeekSession(run_dir, bus)
+        sandbox = SandboxSimulator("deepseek", mode=sandbox_mode_for_approval(self.config.approval_mode))
         errors: list[str] = []
         plan_state = PlanState()
         changes = ChangeTracker()
@@ -338,6 +340,30 @@ class DeepSeekHarness:
                     token_budget=self.config.token_budget,
                     context_snapshot=context.snapshot(task),
                 )
+
+            profile = sandbox.start(
+                bus,
+                workspace=self.config.workspace,
+                approval_mode=self.config.approval_mode,
+            )
+            session.append(
+                "sandbox/mode",
+                stage="bootstrap",
+                message=f"sandbox mode: {profile.mode}",
+                data={
+                    "mode": profile.mode,
+                    "backend": profile.backend,
+                    "writableRoots": profile.writable_roots,
+                    "networkAccess": profile.network_access,
+                    "enforcement": profile.enforcement,
+                },
+                bus_data={
+                    "mode": profile.mode,
+                    "backend": profile.backend,
+                    "writable_roots": profile.writable_roots,
+                    "network_access": profile.network_access,
+                },
+            )
 
             tool_ctx = ToolContext(
                 workspace=self.config.workspace,
@@ -687,6 +713,7 @@ class DeepSeekHarness:
             )
             final_answer = final_answer or f"运行失败：{exc}"
         finally:
+            sandbox.stop(bus, reason="deepseek_run_finished")
             session.close()
             bus.close()
 

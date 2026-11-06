@@ -159,7 +159,18 @@
 | 长期学习 | 无 | session memory | memory/skills/review | session memory |
 | 失败降级 | 插件/MCP/模型/工具 | 权限/hook/压缩/模型 | review/记忆/技能/MCP | retry/approval/tool/compaction |
 
-## 6. 教学扩展（不是上游事件）
+## 6. Sandbox 源码依据
+
+- Codex：`codex-rs/protocol/src/protocol.rs::SandboxPolicy`、`codex-rs/core/src/sandboxing/`、`linux-sandbox`、`windows-sandbox-rs`。
+- Claude Code：`restored-src/src/utils/sandbox/sandbox-adapter.ts::SandboxManager`、`restored-src/src/entrypoints/sandboxTypes.ts`。
+- Hermes：`tools/environments/`、`toolsets.py`。
+- DeepSeek：`packages/sandbox/sandbox/src/index.ts::SandboxPolicy`、`sandbox-local`、`sandbox-windows-acl`、`packages/core/session/src/types.ts::sandbox/mode`。
+
+对应实现：`agent_runtime/sandbox_sim.py`。该实现只产生
+`sandbox/requested → backend_selected → policy_applied → mounts_prepared → started → stopped`
+等生命周期日志，不创建真实容器或进程。详细说明见 `docs/sandbox-simulation.md`。
+
+## 7. 教学扩展（不是上游事件）
 
 以下事件/机制是本教学项目为了可视化、故障演练和安全兜底新增的，不应误认为上游原生事件：
 
@@ -169,7 +180,7 @@
 - `plugin_loaded`、`mcp_tools_loaded`、`multi_agent_tools_loaded`：本地共享 runtime 的可视线；
 - DeepSeek 的 `fault_mode`、`session/flush` 可视化镜像和 `events.jsonl` 镜像：教学层，上游实际实现分别对应持久化 flush、session event 和 persistence backend。
 
-## 7. 使用原则
+## 8. 使用原则
 
 - 需要源码级行为时，先看上游 path 和 symbol，再看本项目对应实现，不要从 UI 文案反推。
 - 需要新增机制时，先确认它属于上游的哪个 seam；没有源码依据的机制必须标成教学扩展。

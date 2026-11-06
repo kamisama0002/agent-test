@@ -32,6 +32,7 @@ from langgraph.graph import END, START, StateGraph
 from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.approval import ApprovalManager
 from agent_runtime.observability import serialize_messages
+from agent_runtime.sandbox_sim import SandboxSimulator, sandbox_mode_for_approval
 from agent_runtime.plugins import PluginRegistry
 from mini_codex.events import EventBus
 from .config import HermesHarnessConfig
@@ -237,6 +238,12 @@ class HermesHarness:
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         run_dir = (self.config.trace_root or self.config.hermes_home / "runs") / run_id  # type: ignore[union-attr]
         bus = EventBus(run_dir, console=self.config.console)
+        sandbox = SandboxSimulator("hermes", mode=sandbox_mode_for_approval(self.config.approval_mode))
+        sandbox.start(
+            bus,
+            workspace=self.config.workspace,
+            approval_mode=self.config.approval_mode,
+        )
         errors: list[str] = []
         session_id = self.sessions.create_session(
             title=task[:100],
@@ -433,6 +440,7 @@ class HermesHarness:
                         )
                     finally:
                         if self.config.background_review_async:
+                            sandbox.stop(bus, reason="hermes_review_finished")
                             bus.close()
 
                 if self.config.background_review_async:
@@ -458,6 +466,7 @@ class HermesHarness:
             except Exception:
                 pass
             if review_thread is None:
+                sandbox.stop(bus, reason="hermes_run_finished")
                 bus.close()
 
         success = bool(final) and verification_passed is not False

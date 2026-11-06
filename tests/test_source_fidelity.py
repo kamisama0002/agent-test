@@ -16,6 +16,7 @@ from claude_harness.state import ChangeTracker, TodoState
 from claude_harness.tools import ToolContext as ClaudeToolContext, build_tools as build_claude_tools
 from hermes_harness.memory import MemoryStore
 from mini_codex.events import EventBus as CodexEventBus
+from agent_runtime.sandbox_sim import SandboxSimulator, sandbox_mode_for_approval, sandbox_mode_for_permission
 from mini_codex.state import ChangeTracker as CodexChangeTracker, PlanState
 from mini_codex.tools import ToolContext as CodexToolContext, build_tools as build_codex_tools
 
@@ -49,6 +50,24 @@ def test_claude_tool_surface_and_permission_modes(tmp_path: Path) -> None:
     assert permission_for_tool("Read").read_only is True
     assert PermissionManager("plan").decide(permission_for_tool("Write"), {"path": "a.py"}).allowed is False
     assert PermissionManager("acceptEdits").decide(permission_for_tool("Write"), {"path": "a.py"}).allowed is True
+
+
+def test_sandbox_simulation_emits_start_and_stop_events(tmp_path: Path) -> None:
+    sandbox = SandboxSimulator("deepseek", mode=sandbox_mode_for_approval("auto"))
+    bus = CodexEventBus(tmp_path / "sandbox-trace", console=False)
+    profile = sandbox.start(bus, workspace=tmp_path, approval_mode="auto")
+    assert profile.backend == "dsh-sandbox-local"
+    assert sandbox_mode_for_approval("deny") == "read-only"
+    assert sandbox_mode_for_permission("plan") == "read-only"
+    sandbox.stop(bus, reason="test")
+    bus.close()
+    event_types = []
+    for line in (tmp_path / "sandbox-trace" / "events.jsonl").read_text(encoding="utf-8").splitlines():
+        import json
+        event_types.append(json.loads(line)["type"])
+    assert "sandbox/requested" in event_types
+    assert "sandbox/started" in event_types
+    assert "sandbox/stopped" in event_types
 
 
 def test_hermes_memory_defaults_and_fence(tmp_path: Path) -> None:
