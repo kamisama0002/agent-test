@@ -237,6 +237,8 @@ context → turn/start → step/start → user/message → request/header
 - Web 前端内置故障演练（工具 / 插件 / 模型），可以直接观察恢复路径；
 - 完整源码映射见 [docs/source-provenance.md](docs/source-provenance.md)。
 
+小白演示：[docs/deepseek-harness-demo.md](docs/deepseek-harness-demo.md)
+
 README：[deepseek_harness/README.md](deepseek_harness/README.md)
 Notebook：[DeepSeekHarness.ipynb](DeepSeekHarness.ipynb)
 

@@ -456,6 +456,7 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
     stage_label = STAGE_LABELS.get(stage, stage or "未知阶段")
     message = str(event.get("message") or "")
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    session_data = data.get("session_data") if isinstance(data.get("session_data"), dict) else {}
     guide = EVENT_GUIDES.get(event_type, {
         "title": event_type.replace("_", " "),
         "why": "这是 Harness 写入的运行时事件，用来记录内部状态变化。",
@@ -562,7 +563,7 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         output_text = f"reason.kind={reason.get('kind', '?')}；{message}"
         next_text = "结束运行并保留可诊断的结束原因。"
     elif event_type == "request/header":
-        header = data.get("header") if isinstance(data.get("header"), dict) else {}
+        header = data.get("header") if isinstance(data.get("header"), dict) else (session_data.get("header") if isinstance(session_data.get("header"), dict) else {})
         input_text = f"provider={header.get('provider', '?')}，model={header.get('model', '?')}，cwd={header.get('cwd', '?')}"
         output_text = f"reason={data.get('reason', '?')}；请求头已持久化"
         next_text = "执行 session flush 后调用模型。"
@@ -581,12 +582,12 @@ def explain_event(system: str, event: dict) -> dict[str, str]:
         output_text = f"失败 attempt 已记录；{message}"
         next_text = "根据 retry 或 turn/end 决定恢复路径。"
     elif event_type == "tool/call":
-        input_text = f"tool={data.get('name', '?')}；arguments={data.get('arguments', '')}"
-        output_text = f"callId={data.get('callId', '?')}；调用已记录，等待策略/执行。"
+        input_text = f"tool={session_data.get('name', data.get('tool', '?'))}；arguments={session_data.get('arguments', data.get('args', ''))}"
+        output_text = f"callId={session_data.get('callId', data.get('call_id', '?'))}；调用已记录，等待策略/执行。"
         next_text = "审批通过后执行工具，并产生 tool/result。"
     elif event_type == "tool/result":
-        input_text = f"callId={data.get('callId', '?')}；name={data.get('name', '?')}"
-        output_text = f"isError={data.get('isError', '?')}；{message}"
+        input_text = f"callId={session_data.get('callId', data.get('call_id', '?'))}；name={session_data.get('name', data.get('tool', '?'))}"
+        output_text = f"isError={session_data.get('isError', data.get('isError', '?'))}；{message}"
         next_text = "将结果加入派生历史，进入下一 step。"
     elif event_type.startswith("approval/"):
         input_text = f"tool={data.get('tool', '?')}；callId={data.get('callId', '?')}；mode={data.get('mode', '-')}"

@@ -128,6 +128,18 @@ def test_deepseek_model_retry_uses_llm_retry_events(tmp_path: Path) -> None:
     assert result.final_answer == "重试成功。"
 
 
+def test_deepseek_offline_demo_runs_real_session_loop() -> None:
+    from deepseek_harness.demo import run_demo
+
+    result = run_demo(verbose=False)
+    assert result["final_answer"].startswith("Demo 完成")
+    assert result["steps"] == 2
+    assert "turn/start" in result["events"]
+    assert "tool/call" in result["events"]
+    assert "tool/result" in result["events"]
+    assert "turn/end" in result["events"]
+
+
 def test_deepseek_model_failure_closes_turn_with_error(tmp_path: Path) -> None:
     config = DeepSeekHarnessConfig(
         workspace=tmp_path,
