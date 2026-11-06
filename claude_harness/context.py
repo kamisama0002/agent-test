@@ -135,6 +135,18 @@ class ClaudeContextManager:
             return ""
         return self.session_memory_path.read_text(encoding="utf-8", errors="replace")[:8000]
 
+    def snapshot(self, task: str, todo_text: str = "") -> dict[str, str]:
+        """返回 Claude 风格初始上下文的完整可读快照。"""
+
+        return {
+            "System Prompt": BASE_PROMPT,
+            "CLAUDE.md": self.claude_md or "(未找到 CLAUDE.md)",
+            "Session Memory": self.session_memory or "(empty)",
+            "Environment": self.environment,
+            "Current Todo": todo_text or "(尚未创建 Todo)",
+            "User Task": task,
+            "Token Budget": f"{self.token_budget} (compact at {self.compact_threshold})",
+        }
     @staticmethod
     def estimate_tokens(messages: Iterable[BaseMessage]) -> int:
         text = "\n".join(str(getattr(message, "content", "")) for message in messages)

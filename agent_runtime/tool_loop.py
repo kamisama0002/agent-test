@@ -91,6 +91,13 @@ class LangGraphToolLoop:
         except Exception as exc:
             errors.append(f"model: {exc}")
             self._emit("error", f"模型调用失败：{exc}")
+            self._emit(
+                "failure_summary",
+                "模型调用失败，当前循环安全终止",
+                component="model",
+                strategy="return_failure_answer",
+                error=str(exc),
+            )
             return {
                 "messages": messages,
                 "step": step,
@@ -129,6 +136,13 @@ class LangGraphToolLoop:
             if self._seen_calls[signature] > self.max_repeated_calls:
                 errors.append(f"repeated_tool_call:{name}")
                 self._emit("error", f"检测到重复工具调用：{name}")
+                self._emit(
+                    "failure_summary",
+                    "检测到重复工具调用，停止循环",
+                    component="model",
+                    strategy="stop_on_repeated_tool_call",
+                    tool=name,
+                )
                 final = "停止：模型重复调用同一个工具，需要人工调整提示词或工具结果。"
                 stopped = True
                 break
@@ -164,6 +178,15 @@ class LangGraphToolLoop:
                 elapsed_ms=elapsed_ms,
                 call_id=call_id,
             )
+            if status == "error":
+                self._emit(
+                    "fallback_applied",
+                    "工具错误已转成 ToolMessage，交回模型决定下一步",
+                    component="tool",
+                    strategy="return_tool_error_to_model",
+                    tool=name,
+                    call_id=call_id,
+                )
         return {"messages": messages, "errors": errors, "final_answer": final, "done": stopped}
 
     @staticmethod
@@ -189,6 +212,13 @@ class LangGraphToolLoop:
         result = graph.invoke(state)
         final = str(result.get("final_answer", ""))
         if not final:
+            self._emit(
+                "limit_reached",
+                "达到最大模型步数，返回部分结果",
+                component="loop",
+                strategy="stop_at_max_steps",
+                max_steps=self.max_steps,
+            )
             final = "达到最大步骤数，尚未得到最终回答。"
         return ToolLoopResult(
             messages=list(result.get("messages", [])),

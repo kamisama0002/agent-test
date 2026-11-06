@@ -1,4 +1,4 @@
-"""统一启动 Codex / Claude / Hermes 三套 mini Harness。
+"""统一启动 Codex / Claude / Hermes / DeepSeek 四套 mini Harness。
 
 示例：
 
@@ -31,6 +31,7 @@ SYSTEMS = {
     "codex": {"label": "Mini Codex", "demo": "mini_codex_demo", "internal": "mini_codex"},
     "claude": {"label": "Claude mini", "demo": "claude_harness_demo", "internal": "claude_harness"},
     "hermes": {"label": "Hermes mini", "demo": "hermes_harness_demo", "internal": "hermes_harness"},
+    "deepseek": {"label": "DeepSeek Harness", "demo": "deepseek_harness_demo", "internal": "deepseek_harness"},
 }
 
 
@@ -109,6 +110,23 @@ def run_task(args: argparse.Namespace, workspace: Path, task: str) -> Any:
         )
         return ClaudeHarness(config).run(task)
 
+    if args.system == "deepseek":
+        from deepseek_harness.config import DeepSeekHarnessConfig
+        from deepseek_harness.harness import DeepSeekHarness
+
+        config = DeepSeekHarnessConfig(
+            workspace=workspace,
+            max_steps=args.max_turns,
+            verify_command=args.verify_command,
+            console=not args.no_console,
+            model_name=args.model,
+            enable_multi_agent=args.enable_multi_agent,
+            enable_mcp=args.enable_mcp,
+            plugin_dirs=plugins,
+            approval_mode=args.approval_mode,
+        )
+        return DeepSeekHarness(config).run(task)
+
     from hermes_harness.config import HermesHarnessConfig
     from hermes_harness.harness import HermesHarness
 
@@ -133,7 +151,7 @@ def run_task(args: argparse.Namespace, workspace: Path, task: str) -> Any:
 def main() -> int:
     setup_utf8()
     console = Console()
-    parser = argparse.ArgumentParser(description="统一交互入口：Codex / Claude / Hermes mini")
+    parser = argparse.ArgumentParser(description="统一交互入口：Codex / Claude / Hermes / DeepSeek mini")
     parser.add_argument("--system", choices=sorted(SYSTEMS), default="hermes")
     parser.add_argument("--workspace", default=None, help="工作区；不传则复制对应 demo 到临时目录")
     parser.add_argument("--task", default=None, help="只运行一个任务；不传则进入交互模式")
@@ -147,6 +165,7 @@ def main() -> int:
     parser.add_argument("--enable-multi-agent", action="store_true")
     parser.add_argument("--enable-mcp", action="store_true")
     parser.add_argument("--plugin-dir", action="append", default=[], help="本地插件目录，可重复传入")
+    parser.add_argument("--model", default=None, help="覆盖 DeepSeek 模型名")
     parser.add_argument("--no-review", action="store_true")
     parser.add_argument("--no-console", action="store_true")
     parser.add_argument("--no-viewer", action="store_true")

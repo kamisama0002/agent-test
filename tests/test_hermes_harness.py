@@ -8,7 +8,10 @@ from typing import Any
 from langchain_core.messages import AIMessage
 
 from hermes_harness.config import HermesHarnessConfig
+from hermes_harness.context import HermesContextManager
 from hermes_harness.harness import HermesHarness
+from hermes_harness.memory import MemoryStore
+from hermes_harness.skills import SkillStore
 from hermes_harness.tools import ToolContext, build_tools
 
 
@@ -40,6 +43,22 @@ def _context(tmp_path: Path) -> ToolContext:
         skills=SkillStore(tmp_path / ".hermes"),
         sessions=SessionStore(tmp_path / ".hermes"),
     )
+
+
+def test_hermes_context_snapshot_contains_all_long_term_layers(tmp_path: Path) -> None:
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    (home / "SOUL.md").write_text("稳定身份", encoding="utf-8")
+    memory = MemoryStore(home)
+    memory.add("user", "用户偏好中文")
+    skills = SkillStore(home)
+    skills.save("repo-summary", "总结仓库结构", "先读 README")
+    manager = HermesContextManager(tmp_path, home, memory, skills)
+    snapshot = manager.snapshot("总结项目")
+    assert "稳定身份" in snapshot["SOUL.md"]
+    assert "用户偏好中文" in snapshot["长期记忆（MEMORY.md / USER.md）"]
+    assert "repo-summary" in snapshot["Skills Index（渐进披露）"]
+    assert snapshot["User Task"] == "总结项目"
 
 
 def test_toolsets_are_filtered_and_paths_are_bounded(tmp_path: Path) -> None:
@@ -150,5 +169,3 @@ def test_review_failure_does_not_replace_main_answer(tmp_path: Path) -> None:
     assert result.review.error
     assert any("review:" in item for item in result.errors)
     harness.close()
-
-

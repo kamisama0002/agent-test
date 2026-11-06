@@ -31,6 +31,7 @@ from langgraph.graph import END, START, StateGraph
 
 from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.approval import ApprovalManager
+from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
 from mini_codex.events import EventBus
 from .config import HermesHarnessConfig
@@ -114,7 +115,19 @@ class HermesHarness:
 
         tools = list(self.base_tools)
         plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
-        plugin_tools = plugin_registry.load()
+        try:
+            plugin_tools = plugin_registry.load()
+        except Exception as exc:
+            plugin_tools = []
+            bus.emit("error", "bootstrap", f"插件加载失败：{exc}")
+            bus.emit(
+                "fallback_applied",
+                "bootstrap",
+                "插件加载失败，继续使用内置工具",
+                component="plugins",
+                strategy="continue_without_plugins",
+                error=str(exc),
+            )
         if plugin_tools:
             tools.extend(plugin_tools)
             bus.emit(
@@ -138,6 +151,14 @@ class HermesHarness:
                 )
             except Exception as exc:
                 bus.emit("error", "bootstrap", f"MCP 加载失败，继续无 MCP 运行：{exc}")
+                bus.emit(
+                    "fallback_applied",
+                    "bootstrap",
+                    "MCP 不可用，继续使用内置/插件工具",
+                    component="mcp",
+                    strategy="continue_without_mcp",
+                    error=str(exc),
+                )
         if self.config.enable_multi_agent:
             read_only_tools = [item for item in tools if item.name in HERMES_READ_ONLY_TOOL_NAMES]
             tools.extend(build_hermes_agent_tools(self.model, read_only_tools, bus))
@@ -202,6 +223,13 @@ class HermesHarness:
             except Exception as exc:
                 errors.append(f"verify: {exc}")
                 bus.emit("error", "verify", f"验证失败：{exc}")
+                bus.emit(
+                    "failure_summary",
+                    "验证命令异常终止，本轮标记为未通过",
+                    component="verify",
+                    strategy="mark_verification_failed",
+                    error=str(exc),
+                )
                 return False
 
     def run(self, task: str) -> HermesRunResult:
@@ -247,6 +275,9 @@ class HermesHarness:
                     memory_stats=self.memory.stats(),
                     skills=len(self.skills.index()),
                     toolsets=describe_toolsets(self.config.toolsets),
+                    message_count=len(messages),
+                    context_snapshot=self.context.snapshot(state["task"]),
+                    messages=serialize_messages(messages),
                 )
                 return {"messages": messages, "turn": 0, "done": False}
 
@@ -267,6 +298,13 @@ class HermesHarness:
             except Exception as exc:
                 errors.append(f"model: {exc}")
                 bus.emit("error", "model", f"模型调用失败：{exc}")
+                bus.emit(
+                    "failure_summary",
+                    "模型调用失败，安全终止并进入 finalize",
+                    component="model",
+                    strategy="return_failure_answer",
+                    error=str(exc),
+                )
                 return {"messages": messages, "final": f"运行失败：{exc}", "turn": step, "done": True}
             messages.append(response)
             text = message_text(response)
@@ -310,6 +348,16 @@ class HermesHarness:
                         elapsed_ms=round((time.perf_counter() - tool_started) * 1000, 2),
                         call_id=call_id,
                     )
+                    if status == "error":
+                        bus.emit(
+                            "fallback_applied",
+                            "tools",
+                            "工具错误已转成 ToolMessage，交回模型决定下一步",
+                            component="tool",
+                            strategy="return_tool_error_to_model",
+                            tool=name,
+                            call_id=call_id,
+                        )
                     tool_messages.append(ToolMessage(content=output, tool_call_id=call_id, name=name))
                 return {"messages": [*state["messages"], *tool_messages]}
 
@@ -321,6 +369,14 @@ class HermesHarness:
                 last = state["messages"][-1] if state["messages"] else None
                 value = state.get("final") or (message_text(last) if last is not None else "")
                 if not value:
+                    bus.emit(
+                        "limit_reached",
+                        "finalize",
+                        "达到最大轮数，返回部分结果",
+                        component="loop",
+                        strategy="stop_at_max_turns",
+                        max_turns=self.config.max_turns,
+                    )
                     value = "达到最大轮数，尚未得到最终 assistant message。"
                 bus.emit("turn_completed", "finalize", value, turns=state.get("turn", 0))
                 return {"final": value, "done": True}
@@ -367,6 +423,14 @@ class HermesHarness:
                         errors.append(f"review: {exc}")
                         review_result = ReviewResult(attempted=True, error=f"{type(exc).__name__}: {exc}")
                         bus.emit("error", "review", f"后台复盘失败：{exc}")
+                        bus.emit(
+                            "fallback_applied",
+                            "review",
+                            "后台复盘失败，保留主任务答案并继续结束运行",
+                            component="review",
+                            strategy="keep_main_answer",
+                            error=str(exc),
+                        )
                     finally:
                         if self.config.background_review_async:
                             bus.close()

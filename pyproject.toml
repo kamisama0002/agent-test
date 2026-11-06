@@ -1,7 +1,7 @@
 [project]
 name = "langchain-cases"
 version = "0.1.0"
-description = "LangChain 示例 + 五框架对比 + Mini Codex + Claude + Hermes mini Harness（阿里云百炼 DeepSeek）"
+description = "LangChain 示例 + 五框架对比 + Codex/Claude/Hermes/DeepSeek mini Harness（阿里云百炼）"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -34,4 +34,5 @@ dev = [
     "nbformat>=5.10,<6",
     "pytest>=9.2.0,<10.0",
 ]
+
 

@@ -67,6 +67,10 @@ def test_context_compaction(tmp_path: Path) -> None:
     assert "test instruction" in discover_agents_md(tmp_path)
 
     messages = manager.initial_messages("task", "plan")
+    snapshot = manager.snapshot("task", "plan")
+    assert "System Prompt" in snapshot
+    assert "AGENTS.md / AGENTS.override.md" in snapshot
+    assert "test instruction" in snapshot["AGENTS.md / AGENTS.override.md"]
     messages.extend(HumanMessage(content="x" * 500) for _ in range(20))
     compacted, removed = manager.compact(messages)
     assert removed > 0

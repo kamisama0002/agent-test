@@ -26,6 +26,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from langchain_cases.common import build_chat_model, message_text
 from agent_runtime.approval import ApprovalManager
+from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
 from .config import HarnessConfig
 from .context import ContextManager
@@ -89,6 +90,14 @@ class MiniCodexHarness:
             return plan
         except Exception as exc:
             bus.emit("warning", "plan", f"结构化规划失败，使用默认计划：{exc}")
+            bus.emit(
+                "fallback_applied",
+                "plan",
+                "规划失败，已切换到确定性的默认计划",
+                component="planner",
+                strategy="use_default_plan",
+                error=str(exc),
+            )
             return Plan(
                 summary="先检查仓库，再完成修改，最后运行验证并总结。",
                 items=[
@@ -129,6 +138,7 @@ class MiniCodexHarness:
                     agents_md_chars=len(context.agents_md),
                     environment_chars=len(context.environment),
                     token_budget=self.config.token_budget,
+                    context_snapshot=context.snapshot(task),
                 )
 
             with bus.stage("plan", "先生成计划，再进入工具循环"):
@@ -139,6 +149,14 @@ class MiniCodexHarness:
             with bus.stage("agent", "模型采样 → 工具执行 → 观察结果 → 继续采样"):
                 plan_text = plan_state.to_text()
                 messages = context.initial_messages(task, plan_text)
+                bus.emit(
+                    "context_assembled",
+                    "agent",
+                    "初始上下文已装配为模型消息",
+                    message_count=len(messages),
+                    context_snapshot=context.snapshot(task, plan_text),
+                    messages=serialize_messages(messages),
+                )
                 tool_ctx = ToolContext(
                     workspace=self.config.workspace,
                     plan=plan_state,
@@ -150,7 +168,20 @@ class MiniCodexHarness:
                 )
                 tools = build_tools(tool_ctx)
                 plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
-                plugin_tools = plugin_registry.load()
+                try:
+                    plugin_tools = plugin_registry.load()
+                except Exception as exc:
+                    plugin_tools = []
+                    errors.append(f"plugins: {exc}")
+                    bus.emit("error", "agent", f"插件加载失败：{exc}")
+                    bus.emit(
+                        "fallback_applied",
+                        "agent",
+                        "插件加载失败，继续使用内置工具",
+                        component="plugins",
+                        strategy="continue_without_plugins",
+                        error=str(exc),
+                    )
                 if plugin_tools:
                     tools.extend(plugin_tools)
                     bus.emit(
@@ -178,6 +209,14 @@ class MiniCodexHarness:
                     except Exception as exc:
                         errors.append(f"mcp: {exc}")
                         bus.emit("error", "agent", f"MCP 加载失败：{exc}")
+                        bus.emit(
+                            "fallback_applied",
+                            "agent",
+                            "MCP 不可用，继续使用内置/插件工具",
+                            component="mcp",
+                            strategy="continue_without_mcp",
+                            error=str(exc),
+                        )
                 if self.config.enable_multi_agent:
                     read_only_tools = [
                         item for item in tools if item.name in READ_ONLY_TOOL_NAMES
@@ -207,7 +246,7 @@ class MiniCodexHarness:
                     errors.extend(loop_result.errors)
                 else:
                     seen_calls: dict[str, int] = {}
-    
+
                     for step in range(1, self.config.max_steps + 1):
                         messages, removed = context.compact(messages)
                         if removed:
@@ -218,15 +257,23 @@ class MiniCodexHarness:
                                 removed=removed,
                                 estimated_tokens=ContextManager.estimate_tokens(messages),
                             )
-    
+
                         bus.emit("model_request", "agent", f"第 {step} 次模型采样", step=step)
                         try:
                             response: AIMessage = model.invoke(messages)
                         except Exception as exc:
                             errors.append(f"model: {exc}")
                             bus.emit("error", "agent", f"模型调用失败：{exc}")
+                            bus.emit(
+                                "failure_summary",
+                                "模型调用失败，当前循环安全终止",
+                                component="model",
+                                strategy="return_failure_answer",
+                                error=str(exc),
+                            )
+                            final_answer = f"运行失败：{exc}"
                             break
-    
+
                         messages.append(response)
                         text = message_text(response)
                         if text:
@@ -234,13 +281,13 @@ class MiniCodexHarness:
                         usage = getattr(response, "usage_metadata", None) or {}
                         if usage:
                             bus.emit("token_usage", "agent", "token usage", **usage)
-    
+
                         tool_calls = list(getattr(response, "tool_calls", None) or [])
                         if not tool_calls:
                             final_answer = text or "模型没有返回最终文本。"
                             bus.emit("turn_completed", "agent", "模型完成本轮，无更多工具调用", step=step)
                             break
-    
+
                         for call in tool_calls:
                             name = call.get("name") or "unknown"
                             args = call.get("args") or {}
@@ -250,9 +297,16 @@ class MiniCodexHarness:
                             if seen_calls[signature] > 2:
                                 errors.append(f"repeated_tool_call:{name}")
                                 bus.emit("error", "agent", f"检测到重复工具调用：{name}")
+                                bus.emit(
+                                    "failure_summary",
+                                    "检测到重复工具调用，停止循环",
+                                    component="model",
+                                    strategy="stop_on_repeated_tool_call",
+                                    tool=name,
+                                )
                                 final_answer = "停止：模型重复调用同一个工具，需要人工调整提示词或工具结果。"
                                 break
-    
+
                             bus.emit("tool_started", "agent", "", tool=name, args=args, call_id=call_id)
                             tool_started = time.perf_counter()
                             try:
@@ -285,10 +339,28 @@ class MiniCodexHarness:
                                 elapsed_ms=round(elapsed_ms, 2),
                                 call_id=call_id,
                             )
+                            if status == "error":
+                                bus.emit(
+                                    "fallback_applied",
+                                    "agent",
+                                    "工具错误已转成 ToolMessage，交回模型决定下一步",
+                                    component="tool",
+                                    strategy="return_tool_error_to_model",
+                                    tool=name,
+                                    call_id=call_id,
+                                )
                         if final_answer.startswith("停止："):
                             break
-    
+
                     if not final_answer:
+                        bus.emit(
+                            "limit_reached",
+                            "agent",
+                            "达到最大模型步数，返回部分结果",
+                            component="loop",
+                            strategy="stop_at_max_steps",
+                            max_steps=self.config.max_steps,
+                        )
                         final_answer = "达到最大步骤数，尚未得到最终回答。"
 
             with bus.stage("verify", "检查测试/lint 结果"):

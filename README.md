@@ -1,12 +1,13 @@
-# LangChain + 五框架 Agent + Mini Codex + Claude + Hermes mini
+# LangChain + 五框架 Agent + Mini Codex + Claude + Hermes + DeepSeek
 
-这个项目现在包含五层内容：
+这个项目现在包含六层内容：
 
 1. **LangChain 核心能力教程**：15 个可独立运行的 Python 案例；
 2. **五框架售后工单小项目**：同一业务分别用 LangChain、LangGraph、CrewAI、LlamaIndex、OpenAI Agents SDK 实现；
 3. **Mini Codex**：用 LangChain 复刻 Codex 的开发 Agent Harness，包含上下文、规划、工具循环、验证和事件可视化。
 4. **Claude-style Harness**：用 LangGraph 复刻 Claude Code 的 `queryLoop`、`CLAUDE.md`、权限模式、TodoWrite、上下文压缩、子 Agent 和 MCP。
 5. **Hermes mini**：通用 Agent Harness，复刻 `MEMORY.md` / `USER.md`、`SKILL.md`、后台复盘、curator、session_search 和 toolset。
+6. **DeepSeek Harness**：面向推理模型的编码 Harness，突出 `reasoning_content`、有限重试、checkpoint、session memory 和故障降级。
 
 所有示例统一接入阿里云百炼的 OpenAI 兼容接口，默认模型为 `deepseek-v4.1-flash`。
 
@@ -48,10 +49,17 @@ uv run python -m hermes_harness `
   --task "阅读 research.md，提炼三条结论；以后请先给结论再给依据。" `
   --toolsets hermes
 
-# 三套 mini 的统一交互入口（自动启动实时 Viewer）
+# DeepSeek Harness：推理内容 + 重试 + checkpoint
+Copy-Item examples/deepseek_harness_demo $env:TEMP/deepseek_harness_demo -Recurse -Force
+uv run python -m deepseek_harness --workspace $env:TEMP/deepseek_harness_demo `
+  --task "修复 calculator.py 中 add 的 bug，运行测试并总结" `
+  --verify-command "python -m pytest -q"
+
+# 四套 mini 的统一交互入口（自动启动实时 Viewer）
 uv run python main_mini.py --system codex
 uv run python main_mini.py --system claude
 uv run python main_mini.py --system hermes
+uv run python main_mini.py --system deepseek
 
 # 只跑一次、关闭实时 Viewer
 uv run python main_mini.py --system hermes --task "总结当前项目" --no-viewer
@@ -206,6 +214,25 @@ uv run python -m hermes_harness `
 - [HermesHarness.ipynb](HermesHarness.ipynb)
 - [源码级系统流程图](docs/system-maps/README.md)
 
+## DeepSeek Harness
+
+DeepSeek 版重点展示推理模型开发 Agent 的差异：
+
+```text
+bootstrap → context(DEEPSEEK.md/session) → plan → model(reasoning + tools)
+          → checkpoint ↔ tools → verify → finalize(session memory)
+```
+
+- `reasoning_content` 与最终正文分栏记录；
+- 模型调用有限重试 + 退避，并产生 `retry_scheduled / retry_succeeded`；
+- 模型后、工具后都写 `checkpoint.json`；
+- 工具错误作为 `ToolMessage` 回填，插件/MCP 失败降级继续；
+- 重复工具调用、最大步数和模型最终失败都有明确断路器；
+- 复用同一套插件、MCP、多 Agent 和审批边界。
+
+README：[deepseek_harness/README.md](deepseek_harness/README.md)
+Notebook：[DeepSeekHarness.ipynb](DeepSeekHarness.ipynb)
+
 ## 源码级交互流程图
 
 这些图由 Archify 生成，节点带源码路径/行号和 GitHub 链接，适合对照 `events.jsonl` 阅读。
@@ -213,6 +240,7 @@ uv run python -m hermes_harness `
 - [Mini Codex：run_turn 工具循环](docs/system-maps/mini-codex.html)
 - [Claude-style：LangGraph queryLoop](docs/system-maps/claude-harness.html)
 - [Hermes mini：记忆、技能与后台复盘](docs/system-maps/hermes-harness.html)
+- [DeepSeek Harness：推理、重试与 checkpoint](docs/system-maps/deepseek-harness.html)
 - [Support Project：五框架对照](docs/system-maps/support-project.html)
 - [图的说明与实时事件映射](docs/system-maps/README.md)
 
@@ -228,16 +256,16 @@ uv run python docs/system-maps/live_viewer.py --system hermes_harness `
 ## Runtime Extensions
 
 - [插件、审批、MCP、多 Agent 与统一入口](docs/runtime-extensions.md)
-- `main_mini.py`：三套 mini 的交互式统一入口，自动启动实时 Viewer
+- `main_mini.py`：四套 mini 的交互式统一入口，自动启动实时 Viewer
 
 ## Mini Harness Studio 前端
 
 `frontend/server.py` 提供本地 Web 工作台：左侧对话、中间 Archify 图、右侧事件参数和节点源码。
 
-- 支持 Codex / Claude / Hermes 切换；
+- 支持 Codex / Claude / Hermes / DeepSeek 切换；
 - 每次提问后可以「上一步 / 下一步 / 播放」逐事件查看；
 - 工具参数、工具输出、审批事件和源码片段都会显示；
-- 启动时自动复制三套 demo 到临时 workspace。
+- 启动时自动复制四套 demo 到临时 workspace。
 
 ![Mini Harness Studio](frontend/preview.png)
 
@@ -401,6 +429,3 @@ BAILIAN_EMBEDDING_MODEL=
 - SQL Agent 必须使用只读账号、白名单表、超时和行数限制。
 - 长期记忆的 namespace/key 必须由服务端根据登录身份生成。
 - 生产环境应把 InMemorySaver/InMemoryStore 换成持久化后端，并接入真实审计。
-
-
-

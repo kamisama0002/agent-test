@@ -7,7 +7,7 @@ const state = {
   nodes: [],
   lastRun: '',
   timer: null,
-  messages: { codex: [], claude: [], hermes: [] },
+  messages: { codex: [], claude: [], hermes: [], deepseek: [] },
 };
 const els = {
   tabs: document.querySelectorAll('#systems button'),
@@ -122,12 +122,17 @@ function switchSystem(system) {
   state.nodes = [];
   document.body.dataset.system = system;
   els.tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.system === system));
-  const titles = { codex: 'Mini Codex：LangGraph 运行流', claude: 'Claude mini：queryLoop 运行流', hermes: 'Hermes mini：记忆与复盘运行流' };
+  const titles = {
+    codex: 'Mini Codex：LangGraph 运行流',
+    claude: 'Claude mini：queryLoop 运行流',
+    hermes: 'Hermes mini：记忆与复盘运行流',
+    deepseek: 'DeepSeek Harness：推理、重试与 checkpoint',
+  };
   els.title.textContent = titles[system];
-  els.iframe.src = '/diagram?system=' + encodeURIComponent(system);
+  els.iframe.src = '/diagram?system=' + encodeURIComponent(system) + '&theme=light&embed=1';
   els.activePill.textContent = '等待运行…';
   els.events.innerHTML = '<div class="empty">还没有事件。发送一个问题开始。</div>';
-  els.nodeView.innerHTML = '<div class="empty">点击中间图里的节点<br>查看源码位置和职责。</div>';
+  els.nodeView.innerHTML = '<div class="empty">点击中间图里的节点<br>查看源码位置、设计边界和当前运行参数。</div>';
   els.eventCount.textContent = '0 events';
   els.runId.textContent = 'no run';
   renderMessages();
@@ -145,12 +150,12 @@ function injectDiagramStyles() {
   style.id = 'studio-live-style';
   style.textContent = `
     [data-node-id].studio-active > rect:not(.c-mask) {
-      stroke: #22d3ee !important;
+      stroke: #0284c7 !important;
       stroke-width: 4 !important;
-      filter: drop-shadow(0 0 10px rgba(34,211,238,.95));
+      filter: drop-shadow(0 0 9px rgba(2,132,199,.55));
     }
     [data-node-id].studio-done > rect:not(.c-mask) {
-      stroke: #34d399 !important;
+      stroke: #059669 !important;
       stroke-width: 2.5 !important;
     }
   `;
@@ -184,34 +189,127 @@ function markNode(nodeId, doneBefore) {
   active.classList.add('studio-active');
   try { active.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch (_) {}
 }
+function renderStructuredValue(value) {
+  if (value === null || value === undefined) return '<p class="snapshot-empty">(empty)</p>';
+  if (typeof value === 'string') return `<pre class="snapshot-text">${esc(value)}</pre>`;
+  return `<pre class="snapshot-json">${esc(JSON.stringify(value, null, 2))}</pre>`;
+}
+function renderContextSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return '';
+  const entries = Object.entries(snapshot);
+  if (!entries.length) return '';
+  return `
+    <details class="context-drawer" open>
+      <summary>完整上下文快照 <span>${entries.length} 个分区</span></summary>
+      <div class="context-intro">这里显示的是 Harness 在事件发生时实际读取/装配的内容。字符数只是索引，下面是正文。</div>
+      ${entries.map(([name, value]) => `
+        <details class="context-block" open>
+          <summary>${esc(name)}</summary>
+          ${renderStructuredValue(value)}
+        </details>
+      `).join('')}
+    </details>
+  `;
+}
+function renderMessages(messages) {
+  if (!Array.isArray(messages) || !messages.length) return '';
+  return `
+    <details class="context-drawer" open>
+      <summary>实际进入模型的消息 <span>${messages.length} 条</span></summary>
+      <div class="message-snapshot">
+        ${messages.map((message, index) => `
+          <article class="snapshot-message">
+            <div class="snapshot-message-head">#${index + 1} · ${esc(message.role || 'message')}${message.name ? ' · ' + esc(message.name) : ''}</div>
+            ${renderStructuredValue(message.content)}
+            ${message.tool_calls ? `<div class="snapshot-sub">tool_calls</div>${renderStructuredValue(message.tool_calls)}` : ''}
+          </article>
+        `).join('')}
+      </div>
+    </details>
+  `;
+}
+function renderExplanation(explanation) {
+  if (!explanation) return '';
+  const rows = [
+    ['why', '为什么需要这一步'],
+    ['input', '输入'],
+    ['output', '输出 / 观察'],
+    ['design', '设计思路'],
+    ['system_design', '这套 Harness 的取舍'],
+    ['next', '下一步'],
+  ];
+  return `
+    <div class="explain-grid">
+      ${rows.filter(([key]) => explanation[key]).map(([key, label]) => `
+        <section class="explain-item explain-${key}">
+          <div class="explain-label">${label}</div>
+          <p>${esc(explanation[key])}</p>
+        </section>
+      `).join('')}
+    </div>
+  `;
+}
+function renderRawData(data) {
+  if (!data || typeof data !== 'object' || !Object.keys(data).length) return '';
+  return `
+    <details class="raw-data">
+      <summary>原始事件参数</summary>
+      <pre>${esc(JSON.stringify(data, null, 2))}</pre>
+    </details>
+  `;
+}
+
 async function inspectNode(nodeId, eventRow = null) {
   const eventCard = eventRow ? `
     <div class="event-card">
-      <strong>${esc(eventRow.event || 'event')}</strong>
-      <p>${esc(eventRow.stage || '')} · ${esc(eventRow.node_label || eventRow.node || '')}</p>
-      <pre>${esc(JSON.stringify(eventRow.data || {}, null, 2))}</pre>
+      <div class="event-card-head">
+        <div>
+          <span class="event-card-kicker">STEP EXPLAINER</span>
+          <strong>${esc(eventRow.explanation?.title || eventRow.event || 'event')}</strong>
+        </div>
+        <span class="event-badge">${esc(eventRow.event || '')}</span>
+      </div>
+      <p class="event-location">${esc(eventRow.stage || '')} · ${esc(eventRow.node_label || eventRow.node || '')} · ${esc(eventRow.timestamp || '')}</p>
+      ${renderExplanation(eventRow.explanation)}
+      ${eventRow.data?.context_snapshot ? renderContextSnapshot(eventRow.data.context_snapshot) : ''}
+      ${eventRow.data?.messages ? renderMessages(eventRow.data.messages) : ''}
+      ${renderRawData(eventRow.data)}
     </div>
   ` : '';
   if (!nodeId) {
     els.nodeView.innerHTML = eventCard || '<div class="empty">这个事件没有对应节点。</div>';
     return;
   }
-  const data = await fetchJSON(`/api/node?system=${encodeURIComponent(state.system)}&node=${encodeURIComponent(nodeId)}`);
-  const node = data.node;
-  const sources = (data.sources || []).map(source => `
-    <div class="source">
-      <div class="source-head"><span>${esc(source.path)}:${source.line}-${source.end_line}</span><span>${esc(source.label || '')}</span></div>
-      <pre>${esc(source.code)}</pre>
-    </div>
-  `).join('');
-  els.nodeView.innerHTML = eventCard + `
-    <div class="node-card">
-      <h3>${esc(node.label)}</h3>
-      <p>${esc(node.sublabel || '')}</p>
-      <span class="tag">${esc(node.type || '')} ${esc(node.tag || '')}</span>
-    </div>
-    ${sources || '<div class="empty">这个节点没有源码引用。</div>'}
-  `;
+  try {
+    const data = await fetchJSON(`/api/node?system=${encodeURIComponent(state.system)}&node=${encodeURIComponent(nodeId)}`);
+    const node = data.node;
+    const sources = (data.sources || []).map(source => `
+      <div class="source">
+        <div class="source-head"><span>${esc(source.path)}:${source.line}-${source.end_line}</span><span>${esc(source.label || '')}</span></div>
+        <pre>${esc(source.code)}</pre>
+      </div>
+    `).join('');
+    els.nodeView.innerHTML = `
+      ${eventCard}
+      <div class="node-card">
+        <h3>${esc(node.label)}</h3>
+        <p>${esc(node.sublabel || '')}</p>
+        <span class="tag">${esc(node.type || '')} ${esc(node.tag || '')}</span>
+      </div>
+      ${sources || '<div class="empty">这个节点没有源码引用。</div>'}
+    `;
+  } catch (error) {
+    els.nodeView.innerHTML = eventCard || `<div class="empty">${esc(error.message)}</div>`;
+  }
+}
+function eventDataPreview(data) {
+  if (!data || typeof data !== 'object') return '';
+  const light = { ...data };
+  delete light.context_snapshot;
+  delete light.messages;
+  if (light.plan) light.plan = Array.isArray(light.plan.items) ? `${light.plan.items.length} steps` : 'plan';
+  const text = JSON.stringify(light, null, 2);
+  return text.length > 520 ? text.slice(0, 520) + '\n…' : text;
 }
 function addEvent(row) {
   const previous = els.events.querySelector('.event.active');
@@ -220,14 +318,23 @@ function addEvent(row) {
   item.className = 'event active';
   const label = row.node_label || row.node || 'unknown';
   const message = row.message || '';
-  const params = row.data && Object.keys(row.data).length ? JSON.stringify(row.data, null, 2) : '';
+  const params = eventDataPreview(row.data);
+  const why = row.explanation?.why || '';
   item.innerHTML = `
     <div class="meta"><span class="kind">${esc(row.event || 'event')}</span><span>${esc(row.stage || '')}</span><span class="node">${esc(label)}</span></div>
+    <div class="event-title">${esc(row.explanation?.title || row.event || '')}</div>
     <div class="msg">${esc(message)}</div>
+    ${why ? `<div class="event-why">${esc(why)}</div>` : ''}
     ${params ? `<div class="params">${esc(params)}</div>` : ''}
     <div class="data">${row.tool ? 'tool=' + esc(row.tool) + ' · ' : ''}node=${esc(row.node || '-')}</div>
   `;
-  item.addEventListener('click', () => { state.playing = false; renderPlayState(); inspectNode(row.node, row).catch(console.error); });
+  item.addEventListener('click', () => {
+    state.playing = false;
+    renderPlayState();
+    els.events.querySelectorAll('.event').forEach(node => node.classList.remove('active'));
+    item.classList.add('active');
+    inspectNode(row.node, row).catch(console.error);
+  });
   els.events.prepend(item);
   while (els.events.querySelectorAll('.event').length > 90) els.events.lastElementChild.remove();
 }
@@ -237,7 +344,7 @@ function stepOnce(force = false) {
   const previous = state.cursor > 0 ? state.events[state.cursor - 1].node : '';
   markNode(row.node, previous);
   addEvent(row);
-  els.activePill.textContent = `${row.node_label || row.node} · ${row.event}`;
+  els.activePill.textContent = `${row.explanation?.title || row.node_label || row.node} · ${row.event}`;
   els.eventCount.textContent = `${state.cursor + 1} / ${state.events.length} events`;
   inspectNode(row.node, row).catch(() => {});
   state.cursor += 1;
@@ -278,7 +385,6 @@ async function resetChat() {
   setStatus('idle');
   els.events.innerHTML = '<div class="empty">对话已重置。发送新问题开始新的 run。</div>';
 }
-
 function renderPlayState() {
   if (els.play) els.play.textContent = state.playing ? '❚❚' : '▶';
 }
@@ -305,7 +411,7 @@ function replayTo(target) {
   state.cursor = target;
   if (target > 0) {
     const last = rows[rows.length - 1];
-    els.activePill.textContent = `${last.node_label || last.node} · ${last.event}`;
+    els.activePill.textContent = `${last.explanation?.title || last.node_label || last.node} · ${last.event}`;
     inspectNode(last.node, last).catch(() => {});
   }
   updateStepIndicator();
@@ -321,7 +427,6 @@ function nextStep() {
   stepOnce(true);
   updateStepIndicator();
 }
-
 function init() {
   els.tabs.forEach(tab => tab.addEventListener('click', () => switchSystem(tab.dataset.system)));
   els.form.addEventListener('submit', sendQuestion);

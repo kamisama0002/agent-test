@@ -108,6 +108,21 @@ class ContextManager:
             HumanMessage(content=f"# 用户任务\n{task}"),
         ]
 
+    def snapshot(self, task: str, plan_text: str = "") -> dict[str, str]:
+        """返回本次初始上下文的结构化快照，供事件流与前端内视使用。
+
+        这是“实际注入内容”的可读版本，不是字符数摘要。计划在 plan 阶段
+        才会生成，因此构建快照时如果还没有计划，会明确标注。
+        """
+
+        return {
+            "System Prompt": BASE_SYSTEM_PROMPT,
+            "AGENTS.md / AGENTS.override.md": self.agents_md or "(未找到 AGENTS.md)",
+            "Environment": self.environment,
+            "Current Plan": plan_text or "(计划尚未生成)",
+            "User Task": task,
+            "Token Budget": str(self.token_budget),
+        }
     @staticmethod
     def estimate_tokens(messages: Iterable[BaseMessage]) -> int:
         # 粗略估算：约 4 个字符 = 1 token；用于触发压缩，不用于精确计费。

@@ -20,25 +20,41 @@ from typing import Any
 
 EVENT_TO_NODE: dict[str, dict[str, str]] = {
     "mini_codex": {
+        "context_built": "context", "context_assembled": "context",
         "tool_started": "tools", "tool_finished": "tools", "plan_created": "plan",
         "verification_completed": "verify", "run_completed": "final",
         "approval_decision": "extensions", "plugin_tools_loaded": "extensions",
         "plugin_loaded": "extensions",
         "mcp_tools_loaded": "extensions", "multi_agent_tools_loaded": "multi_agent",
+        "fallback_applied": "error", "failure_summary": "error", "limit_reached": "error",
+        "retry_scheduled": "error", "retry_succeeded": "model",
     },
     "claude_harness": {
+        "context_prepared": "prepare", "context_assembled": "prepare",
         "tool_started": "tools", "tool_finished": "tools", "permission_decision": "permissions",
         "hook_pre_tool": "hooks", "hook_post_tool": "hooks",
         "verification_completed": "verify", "query_completed": "finalize",
         "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions", "mcp_tools_loaded": "extensions",
     },
     "hermes_harness": {
-        "context_prepared": "prepare", "memory_changed": "memory",
+        "context_prepared": "prepare", "context_assembled": "prepare", "memory_changed": "memory",
         "skill_viewed": "skills", "skill_changed": "skills",
         "review_completed": "review", "turn_completed": "finalize",
         "verification_completed": "verify", "approval_decision": "approval",
         "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions", "mcp_tools_loaded": "extensions",
         "multi_agent_tools_loaded": "multi_agent",
+        "failure_summary": "finalize", "limit_reached": "finalize",
+    },
+    "deepseek_harness": {
+        "context_built": "context", "context_assembled": "context", "plan_created": "plan",
+        "reasoning_content": "model", "agent_message": "model", "token_usage": "model",
+        "tool_started": "tools", "tool_finished": "tools",
+        "checkpoint_saved": "checkpoint", "verification_completed": "verify",
+        "verification_skipped": "verify", "run_completed": "final",
+        "plugin_loaded": "extensions", "plugin_tools_loaded": "extensions",
+        "mcp_tools_loaded": "extensions", "multi_agent_tools_loaded": "multi_agent",
+        "fallback_applied": "error", "failure_summary": "error", "limit_reached": "error",
+        "retry_scheduled": "error", "retry_succeeded": "model",
     },
 }
 
@@ -68,6 +84,14 @@ STAGE_TO_NODE: dict[str, dict[str, str]] = {
         "finalize": "finalize",
         "review": "review",
         "verify": "verify",
+    },
+    "deepseek_harness": {
+        "bootstrap": "boot",
+        "context": "context",
+        "plan": "plan",
+        "agent": "model",
+        "verify": "verify",
+        "finalize": "final",
     },
 }
 

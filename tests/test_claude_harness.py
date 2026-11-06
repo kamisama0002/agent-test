@@ -35,6 +35,10 @@ def test_claude_md_layers(tmp_path: Path) -> None:
     text = discover_claude_md(tmp_path)
     assert "root rules" in text
     assert "test rules" in text
+    snapshot = ClaudeContextManager(tmp_path).snapshot("fix", "- [ ] inspect")
+    assert "System Prompt" in snapshot
+    assert "root rules" in snapshot["CLAUDE.md"]
+    assert "- [ ] inspect" in snapshot["Current Todo"]
 
 
 def test_permission_modes(tmp_path: Path) -> None:

@@ -1,0 +1,613 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "DeepSeek Harness：推理、工具与恢复流",
+    "subtitle": "对应 deepseek_harness/harness.py::DeepSeekHarness.run；含 reasoning、retry、checkpoint 与失败降级",
+    "locale": "zh-CN",
+    "output": "docs/system-maps/deepseek-harness.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kamisama0002/agent-test.git",
+      "provider": "github",
+      "revision": "9c41679f02380f4786da33581932b501da21098e",
+      "link_mode": "web"
+    },
+    "views": [
+      {
+        "id": "happy",
+        "label": "正常推理闭环",
+        "focus": [
+          "start",
+          "boot",
+          "context",
+          "plan",
+          "setup",
+          "model",
+          "tools",
+          "checkpoint",
+          "verify",
+          "final"
+        ],
+        "note": "模型推理 → 工具观察 → checkpoint → 再推理；无 tool_calls 后验证并收尾"
+      },
+      {
+        "id": "recovery",
+        "label": "错误与恢复分支",
+        "focus": [
+          "model",
+          "tools",
+          "error",
+          "checkpoint",
+          "final"
+        ],
+        "note": "模型重试、工具错误回填、重复调用断路、最大步数保护"
+      },
+      {
+        "id": "extensions",
+        "label": "扩展装配",
+        "focus": [
+          "setup",
+          "tool_registry",
+          "events",
+          "multi_agent",
+          "extensions"
+        ],
+        "note": "插件、MCP、多 Agent 与审批共享平台能力"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "入口与上下文"
+    },
+    {
+      "id": "loop",
+      "label": "Agent turn loop（Python for 循环）"
+    },
+    {
+      "id": "evidence",
+      "label": "事件、工具与证据"
+    },
+    {
+      "id": "exit",
+      "label": "验证与产物",
+      "variant": "exception"
+    },
+    {
+      "id": "extensions",
+      "label": "运行时扩展"
+    }
+  ],
+  "phases": [
+    {
+      "id": "setup",
+      "label": "准备仓库",
+      "fromCol": 0,
+      "toCol": 1,
+      "variant": "default"
+    },
+    {
+      "id": "reason",
+      "label": "计划与采样",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "execute",
+      "label": "工具与验证",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "turn_loop",
+      "label": "每轮 model → tools → model",
+      "lane": "loop",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "event_trace",
+      "label": "EventBus 时间线",
+      "lane": "evidence",
+      "fromCol": 1,
+      "toCol": 3,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "用户任务",
+      "sublabel": "task + workspace",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 102,
+          "end_line": 107,
+          "label": "run 入口"
+        }
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "boot",
+      "lane": "entry",
+      "col": 1,
+      "type": "backend",
+      "label": "Bootstrap",
+      "sublabel": "validate + create run",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/harness.py",
+          "line": 118,
+          "end_line": 122,
+          "label": "bootstrap stage"
+        }
+      ],
+      "icon": "start"
+    },
+    {
+      "id": "context",
+      "lane": "entry",
+      "col": 2,
+      "type": "database",
+      "label": "DeepSeekContextManager",
+      "sublabel": "DEEPSEEK.md + session + env",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 244,
+          "end_line": 258,
+          "label": "context stage"
+        },
+        {
+          "path": "deepseek_harness/context.py",
+          "line": 94,
+          "end_line": 146,
+          "label": "上下文与快照"
+        }
+      ],
+      "tag": "context layers"
+    },
+    {
+      "id": "plan",
+      "lane": "entry",
+      "col": 3,
+      "type": "backend",
+      "label": "Structured Plan",
+      "sublabel": "fallback to default plan",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 176,
+          "end_line": 222,
+          "label": "规划与降级"
+        },
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 259,
+          "end_line": 263,
+          "label": "plan stage"
+        }
+      ],
+      "tag": "PlanState"
+    },
+    {
+      "id": "setup",
+      "lane": "loop",
+      "col": 2,
+      "type": "backend",
+      "label": "Tool + Extension Setup",
+      "sublabel": "approval · plugins · MCP · agents",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 264,
+          "end_line": 357,
+          "label": "工具与扩展装配"
+        }
+      ],
+      "tag": "shared runtime"
+    },
+    {
+      "id": "model",
+      "lane": "loop",
+      "col": 3,
+      "type": "cloud",
+      "label": "DeepSeek Reasoner",
+      "sublabel": "reasoning_content + tool_calls",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 93,
+          "end_line": 142,
+          "label": "有限重试 + 模型调用"
+        },
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 359,
+          "end_line": 390,
+          "label": "reasoning / answer / usage"
+        }
+      ],
+      "tag": "reasoning",
+      "icon": "cloud"
+    },
+    {
+      "id": "tools",
+      "lane": "loop",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Controlled Tools",
+      "sublabel": "tool_calls → observation",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 391,
+          "end_line": 477,
+          "label": "工具循环与错误回填"
+        }
+      ],
+      "tag": "approval boundary",
+      "icon": "messagebus"
+    },
+    {
+      "id": "tool_registry",
+      "lane": "evidence",
+      "col": 1,
+      "type": "backend",
+      "label": "Tool Registry",
+      "sublabel": "read/write/search/command",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/tools.py",
+          "line": 89,
+          "end_line": 280,
+          "label": "build_tools"
+        }
+      ],
+      "tag": "开发工具"
+    },
+    {
+      "id": "events",
+      "lane": "evidence",
+      "col": 2,
+      "type": "database",
+      "label": "EventBus",
+      "sublabel": "events + timeline",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/events.py",
+          "line": 42,
+          "end_line": 113,
+          "label": "事件与时间线"
+        }
+      ],
+      "tag": "可回放",
+      "icon": "database"
+    },
+    {
+      "id": "multi_agent",
+      "lane": "evidence",
+      "col": 3,
+      "type": "messagebus",
+      "label": "SubagentRuntime",
+      "sublabel": "spawn/send/wait",
+      "width": 140,
+      "sources": [
+        {
+          "path": "mini_codex/multi_agent.py",
+          "line": 22,
+          "end_line": 70,
+          "label": "多 Agent 工具"
+        }
+      ],
+      "tag": "可选",
+      "icon": "messagebus"
+    },
+    {
+      "id": "verify",
+      "lane": "exit",
+      "col": 4,
+      "type": "security",
+      "label": "Verify",
+      "sublabel": "exit code is evidence",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 479,
+          "end_line": 510,
+          "label": "验证阶段"
+        }
+      ],
+      "tag": "exit code",
+      "icon": "security"
+    },
+    {
+      "id": "final",
+      "lane": "exit",
+      "col": 5,
+      "type": "backend",
+      "label": "Finalize + Session Memory",
+      "sublabel": "summary · diff · memory",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 512,
+          "end_line": 552,
+          "label": "finalize"
+        }
+      ],
+      "tag": "产物",
+      "icon": "success"
+    },
+    {
+      "id": "error",
+      "lane": "exit",
+      "col": 3,
+      "type": "security",
+      "label": "Retry / Fallback / Error",
+      "sublabel": "bounded recovery",
+      "width": 140,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 93,
+          "end_line": 142,
+          "label": "模型重试"
+        },
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 558,
+          "end_line": 575,
+          "label": "外层异常"
+        }
+      ],
+      "tag": "recovery",
+      "icon": "failure"
+    },
+    {
+      "id": "extensions",
+      "lane": "extensions",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Plugins · MCP · Multi-Agent",
+      "sublabel": "same approved tool boundary",
+      "width": 160,
+      "sources": [
+        {
+          "path": "agent_runtime/plugins.py",
+          "line": 66,
+          "end_line": 169,
+          "label": "插件注册"
+        },
+        {
+          "path": "claude_harness/mcp_server.py",
+          "line": 1,
+          "end_line": 80,
+          "label": "MCP server"
+        },
+        {
+          "path": "mini_codex/multi_agent.py",
+          "line": 22,
+          "end_line": 70,
+          "label": "子 Agent 工具"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint",
+      "lane": "evidence",
+      "col": 4,
+      "type": "database",
+      "label": "Checkpoint",
+      "sublabel": "checkpoint.json after model/tools",
+      "width": 150,
+      "sources": [
+        {
+          "path": "deepseek_harness/harness.py",
+          "line": 144,
+          "end_line": 174,
+          "label": "checkpoint 写入"
+        }
+      ],
+      "tag": "resume evidence"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-boot",
+      "from": "start",
+      "to": "boot",
+      "variant": "default",
+      "label": "启动"
+    },
+    {
+      "id": "boot-context",
+      "from": "boot",
+      "to": "context",
+      "variant": "default"
+    },
+    {
+      "id": "context-plan",
+      "from": "context",
+      "to": "plan",
+      "variant": "default",
+      "label": "规约 + 环境"
+    },
+    {
+      "id": "plan-setup",
+      "from": "plan",
+      "to": "setup",
+      "variant": "default",
+      "label": "计划已生成"
+    },
+    {
+      "id": "setup-model",
+      "from": "setup",
+      "to": "model",
+      "variant": "default",
+      "label": "绑定工具"
+    },
+    {
+      "id": "model-tools",
+      "from": "model",
+      "to": "tools",
+      "variant": "default",
+      "label": "tool_calls"
+    },
+    {
+      "id": "tools-model",
+      "from": "tools",
+      "to": "model",
+      "variant": "emphasis",
+      "label": "下一轮",
+      "role": "branch"
+    },
+    {
+      "id": "model-verify",
+      "from": "model",
+      "to": "verify",
+      "variant": "default",
+      "label": "no tool_calls"
+    },
+    {
+      "id": "verify-final",
+      "from": "verify",
+      "to": "final",
+      "variant": "default",
+      "label": "验证结果"
+    },
+    {
+      "id": "tools-registry",
+      "from": "tools",
+      "to": "tool_registry",
+      "variant": "dashed",
+      "label": "查找工具",
+      "role": "branch"
+    },
+    {
+      "id": "tools-events",
+      "from": "tools",
+      "to": "events",
+      "variant": "dashed",
+      "label": "记录事件",
+      "role": "branch"
+    },
+    {
+      "id": "model-events",
+      "from": "model",
+      "to": "events",
+      "variant": "dashed",
+      "label": "token/model 事件",
+      "role": "branch"
+    },
+    {
+      "id": "setup-multi",
+      "from": "setup",
+      "to": "multi_agent",
+      "variant": "dashed",
+      "label": "可选装配",
+      "role": "branch"
+    },
+    {
+      "id": "model-error",
+      "from": "model",
+      "to": "error",
+      "variant": "security",
+      "label": "retry exhausted",
+      "role": "error"
+    },
+    {
+      "id": "tools-error",
+      "from": "tools",
+      "to": "error",
+      "variant": "dashed",
+      "label": "tool error → observation",
+      "role": "error"
+    },
+    {
+      "id": "model-checkpoint",
+      "from": "model",
+      "to": "checkpoint",
+      "variant": "dashed",
+      "label": "save state",
+      "role": "branch"
+    },
+    {
+      "id": "tools-checkpoint",
+      "from": "tools",
+      "to": "checkpoint",
+      "variant": "dashed",
+      "label": "save state",
+      "role": "branch"
+    },
+    {
+      "id": "checkpoint-final",
+      "from": "checkpoint",
+      "to": "final",
+      "variant": "dashed",
+      "label": "audit trail",
+      "role": "branch"
+    },
+    {
+      "id": "error-final",
+      "from": "error",
+      "to": "final",
+      "variant": "security",
+      "label": "failure result",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "推理与正文分离",
+      "items": [
+        "reasoning_content 单独事件展示",
+        "最终答案仍然只来自 assistant 正文",
+        "工具调用决定下一步路由"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "有限恢复",
+      "items": [
+        "模型失败最多重试 max_model_retries",
+        "工具错误回填为 ToolMessage",
+        "重复调用和最大步数是断路器"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "共享边界",
+      "items": [
+        "插件、MCP、多 Agent 进入同一个 Tool 池",
+        "审批与 workspace 限制沿用共享实现",
+        "checkpoint 记录模型/工具后的状态"
+      ]
+    }
+  ]
+}

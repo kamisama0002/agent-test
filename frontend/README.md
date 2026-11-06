@@ -1,6 +1,6 @@
 # Mini Harness Studio 前端
 
-这是 Codex / Claude / Hermes 三套 mini Harness 的本地 Web 前端。
+这是 Codex / Claude / Hermes / DeepSeek 四套 mini Harness 的本地 Web 前端，默认亮色主题。
 
 ![Mini Harness Studio](preview.png)
 
@@ -21,8 +21,8 @@ http://127.0.0.1:8780/
 ## 页面结构
 
 - 左侧：对话、插件/MCP/多 Agent/审批选项；
-- 中间：当前系统的 Archify 源码流程图；
-- 右侧：当前节点的源码片段、事件参数、工具输出。
+- 中间：当前系统的 Archify 源码流程图，强制使用亮色嵌入；
+- 右侧：逐步解释、完整上下文、实际模型消息、原始事件参数和源码片段。
 
 ## 逐步内视
 
@@ -36,9 +36,11 @@ http://127.0.0.1:8780/
 
 - 当前节点高亮；
 - 已走节点标绿；
-- 事件参数显示在事件卡中；
-- 节点源码在 `RUNTIME X-RAY` 中展示；
-- 点击事件可以重新查看当时的参数。
+- 每个步骤显示“为什么、输入、输出、设计思路、Harness 取舍、下一步”；
+- `context_built` / `context_prepared` 显示完整上下文快照，不再只有字符数；
+- `context_assembled` 显示实际进入模型的 System/Human 消息；
+- 事件参数和节点源码在 `RUNTIME X-RAY` 中展示；
+- 点击任意历史事件可以回看当时的解释和上下文。
 
 ## 工作区
 
@@ -48,6 +50,7 @@ http://127.0.0.1:8780/
 <temp>/mini-frontend-codex-*/
 <temp>/mini-frontend-claude-*/
 <temp>/mini-frontend-hermes-*/
+<temp>/mini-frontend-deepseek-*/
 ```
 
 每次提问生成一个新的 run，前端自动跟随最新 run。
@@ -86,4 +89,3 @@ POST /api/reset
 - 事件通过 `events.jsonl` 轮询，不是 WebSocket；
 - Claude 的权限选择使用它自己的 `permission mode`；
 - Hermes 的后台 review 默认开启，会额外产生模型调用，可通过后端选项扩展关闭。
-

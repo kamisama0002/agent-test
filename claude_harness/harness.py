@@ -20,6 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from langchain_cases.common import build_chat_model, message_text
+from agent_runtime.observability import serialize_messages
 from agent_runtime.plugins import PluginRegistry
 from .config import ClaudeHarnessConfig
 from .context import ClaudeContextManager
@@ -101,7 +102,20 @@ class ClaudeHarness:
         )
         tools, tool_meta = build_tools(tool_ctx)
         plugin_registry = PluginRegistry(self.config.plugin_dirs, event_bus=bus)
-        plugin_tools = plugin_registry.load()
+        try:
+            plugin_tools = plugin_registry.load()
+        except Exception as exc:
+            plugin_tools = []
+            errors.append(f"plugins: {exc}")
+            bus.emit("error", "prepare", f"插件加载失败：{exc}")
+            bus.emit(
+                "fallback_applied",
+                "prepare",
+                "插件加载失败，继续使用内置工具",
+                component="plugins",
+                strategy="continue_without_plugins",
+                error=str(exc),
+            )
         for item in plugin_tools:
             tools.append(item)
             spec = plugin_registry.metadata(item.name)
@@ -139,6 +153,14 @@ class ClaudeHarness:
             except Exception as exc:
                 errors.append(f"mcp: {exc}")
                 bus.emit("error", "prepare", f"MCP 加载失败，继续无 MCP 运行：{exc}")
+                bus.emit(
+                    "fallback_applied",
+                    "prepare",
+                    "MCP 不可用，继续使用内置/插件工具",
+                    component="mcp",
+                    strategy="continue_without_mcp",
+                    error=str(exc),
+                )
 
         # Claude Code 的 AgentTool/Task：只读子 Agent，拥有隔离上下文。
         # MCP 放在这里之前，让子 Agent 也能使用已发现的只读 MCP 工具。
@@ -163,6 +185,9 @@ class ClaudeHarness:
                     "上下文已构建",
                     claude_md_chars=len(context.claude_md),
                     session_memory_chars=len(context.session_memory),
+                    message_count=len(messages),
+                    context_snapshot=context.snapshot(state["task"], todos.to_text()),
+                    messages=serialize_messages(messages),
                 )
                 return {"messages": messages}
 
@@ -187,6 +212,14 @@ class ClaudeHarness:
                         raise ValueError("空计划")
                 except Exception as exc:
                     errors.append(f"planner: {exc}")
+                    bus.emit(
+                        "fallback_applied",
+                        "plan",
+                        "自动规划失败，使用确定性的默认 Todo",
+                        component="planner",
+                        strategy="use_default_todo",
+                        error=str(exc),
+                    )
                     plan = TodoPlan(
                         summary="先探索、再修改、最后验证并更新 Todo。",
                         items=[
@@ -198,7 +231,16 @@ class ClaudeHarness:
                 todos.set(plan)
                 bus.emit("todo_created", "plan", "Todo 已创建", plan=plan.model_dump())
                 plan_message = HumanMessage(content=f"# Current Todo\n{todos.to_text()}")
-                return {"todos": todos.items, "messages": [*state["messages"], plan_message]}
+                messages = [*state["messages"], plan_message]
+                bus.emit(
+                    "context_assembled",
+                    "plan",
+                    "完整上下文（含 Todo）已装配为模型消息",
+                    message_count=len(messages),
+                    context_snapshot=context.snapshot(state["task"], todos.to_text()),
+                    messages=serialize_messages(messages),
+                )
+                return {"todos": todos.items, "messages": messages}
 
         def model_node(state: ClaudeState) -> dict:
             with bus.stage("model", f"第 {state['turn'] + 1} 次模型采样"):
@@ -213,7 +255,19 @@ class ClaudeHarness:
                         after_tokens=compacted.after_tokens,
                     )
                 bus.emit("model_request", "model", "request", turn=state["turn"] + 1)
-                response = model.invoke(compacted.messages)
+                try:
+                    response = model.invoke(compacted.messages)
+                except Exception as exc:
+                    errors.append(f"model: {exc}")
+                    bus.emit("error", "model", f"模型调用失败：{exc}")
+                    bus.emit(
+                        "failure_summary",
+                        "模型调用失败，转入 finalize 返回失败答案",
+                        component="model",
+                        strategy="return_failure_answer",
+                        error=str(exc),
+                    )
+                    response = AIMessage(content=f"运行失败：{exc}")
                 text = message_text(response)
                 if text:
                     bus.emit("agent_message", "model", text)
@@ -256,6 +310,15 @@ class ClaudeHarness:
                         tool_messages.append(
                             ToolMessage(content=output, tool_call_id=call_id, name=name, status="error")
                         )
+                        bus.emit(
+                            "fallback_applied",
+                            "tools",
+                            "权限拒绝已作为工具错误回填给模型",
+                            component="permission",
+                            strategy="return_permission_denial_to_model",
+                            tool=name,
+                            call_id=call_id,
+                        )
                         continue
 
                     hook = tool_ctx.hooks.before(name, args)
@@ -263,6 +326,15 @@ class ClaudeHarness:
                         output = f"ERROR: blocked by pre-tool hook — {hook.reason}"
                         tool_messages.append(
                             ToolMessage(content=output, tool_call_id=call_id, name=name, status="error")
+                        )
+                        bus.emit(
+                            "fallback_applied",
+                            "tools",
+                            "前置 Hook 阻止了工具执行，错误已回填给模型",
+                            component="hook",
+                            strategy="return_hook_denial_to_model",
+                            tool=name,
+                            call_id=call_id,
                         )
                         continue
                     actual_args = hook.updated_args or args
@@ -287,6 +359,16 @@ class ClaudeHarness:
                         elapsed_ms=round((time.perf_counter() - tool_started) * 1000, 2),
                         call_id=call_id,
                     )
+                    if status == "error":
+                        bus.emit(
+                            "fallback_applied",
+                            "tools",
+                            "工具错误已转成 ToolMessage，交回模型决定下一步",
+                            component="tool",
+                            strategy="return_tool_error_to_model",
+                            tool=name,
+                            call_id=call_id,
+                        )
                     tool_messages.append(
                         ToolMessage(content=output, tool_call_id=call_id, name=name, status=status)
                     )
@@ -320,6 +402,14 @@ class ClaudeHarness:
                 last = state["messages"][-1] if state["messages"] else None
                 final = message_text(last) if last is not None else ""
                 if not final:
+                    bus.emit(
+                        "limit_reached",
+                        "finalize",
+                        "达到最大模型轮数，返回部分结果",
+                        component="loop",
+                        strategy="stop_at_max_turns",
+                        max_turns=self.config.max_turns,
+                    )
                     final = "达到最大模型轮数，尚未得到最终 assistant message。"
                 context.save_session_memory(
                     task=state["task"],

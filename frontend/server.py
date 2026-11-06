@@ -37,6 +37,7 @@ if str(ROOT / "docs" / "system-maps") not in sys.path:
     sys.path.insert(0, str(ROOT / "docs" / "system-maps"))
 
 from trace_to_map import map_event  # noqa: E402
+from frontend.explanations import explain_event  # noqa: E402
 
 
 SYSTEMS = {
@@ -63,6 +64,14 @@ SYSTEMS = {
         "diagram": "hermes-harness.html",
         "workflow": "hermes-harness.workflow.json",
         "run_root": ".hermes/runs",
+    },
+    "deepseek": {
+        "label": "DeepSeek Harness",
+        "internal": "deepseek_harness",
+        "demo": "deepseek_harness_demo",
+        "diagram": "deepseek-harness.html",
+        "workflow": "deepseek-harness.workflow.json",
+        "run_root": ".deepseek/runs",
     },
 }
 
@@ -126,7 +135,9 @@ class ChatSession:
         if run_dir is not None:
             for line in (run_dir / "events.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
                 try:
-                    events.append(map_event(SYSTEMS[system]["internal"], json.loads(line)))
+                    event = map_event(SYSTEMS[system]["internal"], json.loads(line))
+                    event["explanation"] = explain_event(system, event)
+                    events.append(event)
                 except json.JSONDecodeError:
                     continue
         nodes = {node["id"]: node for node in _workflow(system).get("nodes", [])}
@@ -220,6 +231,19 @@ class ChatSession:
                     console=False,
                     enable_mcp=enable_mcp,
                     plugin_dirs=plugins,
+                )).run(prompt)
+            elif system == "deepseek":
+                from deepseek_harness.config import DeepSeekHarnessConfig
+                from deepseek_harness.harness import DeepSeekHarness
+
+                result = DeepSeekHarness(DeepSeekHarnessConfig(
+                    workspace=workspace,
+                    max_steps=8,
+                    console=False,
+                    enable_multi_agent=enable_multi,
+                    enable_mcp=enable_mcp,
+                    plugin_dirs=plugins,
+                    approval_mode=approval,
                 )).run(prompt)
             else:
                 from hermes_harness.config import HermesHarnessConfig

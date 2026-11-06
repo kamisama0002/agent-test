@@ -99,6 +99,18 @@ class HermesContextManager:
         self.soul = read_soul(home, workspace)
         self.environment = environment_context(workspace, home)
 
+    def snapshot(self, task: str) -> dict[str, str]:
+        """返回 Hermes 首次注入模型的 SOUL/记忆/技能/环境快照。"""
+
+        return {
+            "SOUL.md": self.soul,
+            "长期记忆（MEMORY.md / USER.md）": self.memory.context_block(),
+            "Skills Index（渐进披露）": self.skills.index_text(),
+            "Environment": self.environment,
+            "Toolsets": describe_toolsets(self.toolsets),
+            "User Task": task,
+            "Token Budget": f"{self.token_budget} (compact at {self.compact_threshold})",
+        }
     @staticmethod
     def estimate_tokens(messages: Iterable[BaseMessage]) -> int:
         text = "\n".join(str(getattr(message, "content", "")) for message in messages)
